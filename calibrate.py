@@ -19,42 +19,69 @@ class commSetting:
     USE_RLRQ = True
     IS_RLRQ_PROTECTED = True
 
-# UTILS
-def read_scalar(dlms_client:DlmsCosemClient, object_list:list)->dict: # the register shall be class id 3
-    output = {}
-    for obj in object_list:
-        data_read = dlms_client.get_cosem_data(3, obj, 3)
-        output[obj] = data_read
-    return output
-
-def read_value(dlms_client:DlmsCosemClient, object_list:list, epoch:int=5)->dict: # the register shall be class id 3
-    output = {}
-    for obj in object_list:
-        output[obj] = []
+class Ratio:
+    def __init__(self, dlms_client:DlmsCosemClient, object:str, num_of_sample:int=3, threshold:int=0.97):
+        self.dlms_client = dlms_client
+        self.object = object
+        self.scalar = None
+        self.value = []
+        self.last_ratio = 0
+        self.threshold = threshold
+        self.num_of_sample = num_of_sample
         
-        for i in range(epoch):
-            data_read = dlms_client.get_cosem_data(3, obj, 2)
-            output[obj].append(data_read)
+    def read_scalar(self):
+        assert self.dlms_client.is_connected
+        
+        if self.scalar != None:
+            return
+        data_read = self.dlms_client.get_cosem_data(3, self.object, 3)
+        self.scalar = data_read
     
-    return output
-
-def apply_scalar(value:dict, scalar:dict):
-    '''
-        value and scalar shall be have the same keys and it's order
-    '''
-    _value = {}
-    for key in value:
-        _value[key] = np.array(value[key]) * scalar[key][0] # NOTE: scalar data structure is [scalar, unit]
-    print(_value)
-    return _value
+    def read_value(self):
+        assert self.dlms_client.is_connected
         
+        self.value = []
+        for i in range(0, self.num_of_sample):
+            data_read = self.dlms_client.get_cosem_data(3, self.object, 2)
+            self.value.append(data_read)
+    
+    def get_mean(self):
+        '''
+            value and scalar shall be have the same keys and it's order
+        '''
+        normalize_value = (np.array(self.value) * (10**self.scalar[0])) # NOTE: scalar data structure is [scalar, unit]
+        normalize_value = normalize_value.mean()
+        return normalize_value
+    
+    def calculate_gain(self, reference:float, current_gain):
+        '''
+            param:
+                reference is the value of actual data from test bench.
+                current_gain is meter's gain correspond to self.object
+        '''
+        assert self.dlms_client.is_connected
+        
+        self.read_scalar()
+        self.read_value()
+        
+        current_mesurement = self.get_mean()
+        if current_mesurement == 0:
+            return current_gain
+        self.last_ratio = reference/current_mesurement * current_gain
+        
+        print(reference, current_mesurement, current_gain, self.last_ratio)
+        
+        error_treshold = 1 - self.threshold
+        error = (reference - current_mesurement) / reference
+        if abs(error) < error_treshold: # if the error near 0 then don't care calibration by passing the same gain value
+            return current_gain
+        return self.last_ratio
+
+# UTILS
 def read_calibration_data(dlms_client:DlmsCosemClient):
     data_read = dlms_client.get_cosem_data(1, "0;128;96;14;80;255", 2)
     output = translator.translate(data_read)
-    print(output)
-    
-    # print(dlms_client.set_cosem_data(1, "0;128;96;14;80;255", 2, 9, data_read))
-    return data_read
+    return output
 # end of UTILS 
 
 def start_calibration():
@@ -73,51 +100,32 @@ def start_calibration():
     
     # Login to meter
     ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL)
-    # read_calibration_data(ser_client)
-        
-    # TODO 4: Pembacaan voltage RMS setiap detik, 5 kali, nilai disimpan
-    print('4: Pembacaan voltage RMS setiap detik, 5 kali, nilai disimpan')
-    V_rms_objects = ["1;0;32;7;0;255", "1;0;52;7;0;255", "1;0;72;7;0;255"]
-    voltage_rms_value = read_value(ser_client, V_rms_objects, 5)
-    voltage_rms_scalar = read_scalar(ser_client, V_rms_objects)
-    print(voltage_rms_value)
-    print(voltage_rms_scalar)
-    print(apply_scalar(voltage_rms_value, voltage_rms_scalar))
-
-    # TODO 6: Pembacaan arus RMS setiap detik, 5 kali, nilai disimpan
-    print('6: Pembacaan arus RMS setiap detik, 5 kali, nilai disimpan')
-    I_rms_objects = ["1;0;31;7;0;255", "1;0;51;7;0;255", "1;0;71;7;0;255"]
-    current_rms_value = read_value(ser_client, I_rms_objects, 5)
-    # current_rms_scalar = read_scalar(ser_client, I_rms_objects)
-    print(current_rms_value)
-    print()
-
-    # TODO 8: Pembacaan nilai active power setiap detik, 5 kali, nilai disimpan
-    print('8: Pembacaan nilai active power setiap detik, 5 kali, nilai disimpan')
-    P_rms_objects = ["1;0;35;7;0;255", "1;0;55;7;0;255", "1;0;75;7;0;255"]
-    activePower_rms_value = read_value(ser_client, P_rms_objects, 5)
-    # activePower_rms_scalar = read_scalar(ser_client, P_rms_objects)
-    print(activePower_rms_value)
-    print()
-
-    # TODO 10: Pembacaan nilai reactive power setiap detik, 5 kali, nilai disimpan
-    print('10: Pembacaan nilai reactive power setiap detik, 5 kali, nilai disimpan')
-    Q_rms_objects = ["1;0;23;7;0;255", "1;0;43;7;0;255", "1;0;63;7;0;255"]
-    reactivePower_rms_value = read_value(ser_client, Q_rms_objects, 5)
-    # reactivePower_rms_scalar = read_scalar(ser_client, Q_rms_objects)
-    print(reactivePower_rms_value)
-    print()
-
-    # TODO 12: Pembacaan nilai apparent power setiap detik, 5 kali, nilai disimpan
-    print('12: Pembacaan nilai apparent power setiap detik, 5 kali, nilai disimpan')
-    S_rms_objects = ["1;0;29;7;0;255", "1;0;49;7;0;255", "1;0;69;7;0;255"]
-    apparentPower_rms_value = read_value(ser_client, S_rms_objects, 5)
-    # apparentPower_rms_scalar = read_scalar(ser_client, S_rms_objects)
-    print(apparentPower_rms_value)
-    print()
-
-    ser_client.client_logout()
     
+    InstantVoltagePhase1 = Ratio(ser_client, "1;0;32;7;0;255")
+    InstantVoltagePhase2 = Ratio(ser_client, "1;0;52;7;0;255")
+    InstantVoltagePhase3 = Ratio(ser_client, "1;0;72;7;0;255")
+    
+    instant_voltages = [InstantVoltagePhase1, InstantVoltagePhase2, InstantVoltagePhase3]
+    voltage_gain_key = ["g_MQAcquisition.gainVrms[phaseA]", "g_MQAcquisition.gainVrms[phaseB]", "g_MQAcquisition.gainVrms[phaseC]"]
+    
+    for i in range(1):
+        gain_value = read_calibration_data(ser_client)
+        print(gain_value['g_MQAcquisition.gainVrms[phaseA]'])
+        
+        for register_object, gain_key in zip(instant_voltages, voltage_gain_key):
+            gain = register_object.calculate_gain(230.0, gain_value[gain_key])
+            gain_value[gain_key] = gain
+            print(register_object.object, gain)
+                        
+        # gain = InstantVoltagePhase1.calculate_gain(230.0, gain_value['g_MQAcquisition.gainVrms[phaseA]'])
+        # print('SHOW GAIN')
+        # print(gain)
+
+        print(gain_value['g_MQAcquisition.gainVrms[phaseA]'])
+        gain_data = translator.translate(gain_value, to_bytes=True)
+        print(gain_data)
+            
+    ser_client.client_logout()
 
 if __name__ == "__main__":
     start_calibration()

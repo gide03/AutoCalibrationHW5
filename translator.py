@@ -102,7 +102,28 @@ def deserializeS08(iData):
     mReturn = struct.unpack(">b", bytearray(iData))
     return mReturn[0]
 
-def translate(data):
+def translate(data, to_bytes=False):
+    if to_bytes:
+        #Print Data to Set!
+        mTempList = []
+        for enum in CalibrationParameter:
+            if CalibrationParameter[enum][0] == "short_unsigned":
+                mTempList.extend(serializeU16(CalibrationParameter[enum][1]))        
+            elif CalibrationParameter[enum][0] == "short_signed":
+                mTempList.extend(serializeS16(CalibrationParameter[enum][1]))        
+            elif CalibrationParameter[enum][0] == "byte_signed":
+                mTempList.extend(serializeS08(CalibrationParameter[enum][1]))        
+            else:
+                mTempList.append(CalibrationParameter[enum][1])
+
+        # print(len(mTempList))
+        # for x in range(len(mTempList)):
+        #     mTempList[x] = str(hex(mTempList[x])).replace("0x", "")
+        #     if len(mTempList[x]) < 2:
+        #         mTempList[x] = "0" + mTempList[x]
+        #     print(mTempList[x], end = " ")
+        return mTempList
+    
     mIndexData = 0 
     mTempList = []
     for enum in CalibrationParameter:
@@ -136,6 +157,7 @@ def translate(data):
 
 
 # #SET CALIBRATION VALUE
+
 # CalibrationSet = {
 
 #     "g_MQAcquisition.gainActiveE[phaseA]"                       : ["short_unsigned",    32734],
