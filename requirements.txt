@@ -1,1 +1,4 @@
+cffi==1.16.0
+cryptography==41.0.5
+pycparser==2.21
 pyserial==3.5
