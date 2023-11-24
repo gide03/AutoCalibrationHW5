@@ -20,7 +20,9 @@ class commSetting:
     IS_RLRQ_PROTECTED = True
 
 class Ratio:
-    def __init__(self, dlms_client:DlmsCosemClient, object:str, num_of_sample:int=3, threshold:int=0.97):
+    def __init__(self, dlms_client:DlmsCosemClient, object:str, num_of_sample:int=3, threshold:int=0.991):
+        assert dlms_client.is_connected
+        
         self.dlms_client = dlms_client
         self.object = object
         self.scalar = None
@@ -28,6 +30,8 @@ class Ratio:
         self.last_ratio = 0
         self.threshold = threshold
         self.num_of_sample = num_of_sample
+        self.read_scalar()
+        
         
     def read_scalar(self):
         assert self.dlms_client.is_connected
@@ -64,7 +68,6 @@ class Ratio:
         '''
         assert self.dlms_client.is_connected
         
-        self.read_scalar()
         self.read_value()
         
         meter_measurement = self.get_mean()
@@ -73,7 +76,7 @@ class Ratio:
         self.last_ratio = reference/meter_measurement * current_gain
         self.last_ratio = int(self.last_ratio)
         
-        print(f"reference:{reference}, meter_measurement:{meter_measurement}, current_gain:{current_gain}, self.last_ratio:{self.last_ratio}, error: {(reference-meter_measurement) / reference}")
+        print(f"reference:{reference}, meter_measurement:{meter_measurement}, current_gain:{current_gain}, new gain calculation:{self.last_ratio}, error: {(reference-meter_measurement) / reference}")
         
         error_treshold = 1 - self.threshold
         error = (reference - meter_measurement) / reference
@@ -99,7 +102,7 @@ def start_calibration():
         bytesize=serial.EIGHTBITS,
         stopbits=serial.STOPBITS_ONE,
         timeout=0.3,
-        inactivity_timeout=10,
+        inactivity_timeout=20,
         login_retry=1,
         meter_addr=commSetting.METER_ADDR,
         client_nb=commSetting.CLIENT_NUMBER,
@@ -116,35 +119,35 @@ def start_calibration():
     InstantVoltagePhase2 = Ratio(ser_client, "1;0;52;7;0;255")
     InstantVoltagePhase3 = Ratio(ser_client, "1;0;72;7;0;255")
     
-    # Current
-    InstantCurrentPhase1 = Ratio(ser_client, "1;0;31;7;0;255")
-    InstantCurrentPhase2 = Ratio(ser_client, "1;0;51;7;0;255")
-    InstantCurrentPhase3 = Ratio(ser_client, "1;0;71;7;0;255")
+    # # Current
+    # InstantCurrentPhase1 = Ratio(ser_client, "1;0;31;7;0;255")
+    # InstantCurrentPhase2 = Ratio(ser_client, "1;0;51;7;0;255")
+    # InstantCurrentPhase3 = Ratio(ser_client, "1;0;71;7;0;255")
     
-    # Power factor
-    PowerFactorImportPhase1 = Ratio(ser_client, "1;0;33;7;0;255")
-    PowerFactorImportPhase2 = Ratio(ser_client, "1;0;53;7;0;255")
-    PowerFactorImportPhase3 = Ratio(ser_client, "1;0;73;7;0;255")
+    # # Power factor
+    # PowerFactorImportPhase1 = Ratio(ser_client, "1;0;33;7;0;255")
+    # PowerFactorImportPhase2 = Ratio(ser_client, "1;0;53;7;0;255")
+    # PowerFactorImportPhase3 = Ratio(ser_client, "1;0;73;7;0;255")
     
-    # Power Active
-    InstantActivePowerPhase1 = Ratio(ser_client, "1;0;35;7;0;255")
-    InstantActivePowerPhase2 = Ratio(ser_client, "1;0;55;7;0;255")
-    InstantActivePowerPhase3 = Ratio(ser_client, "1;0;75;7;0;255")
+    # # Power Active
+    # InstantActivePowerPhase1 = Ratio(ser_client, "1;0;35;7;0;255")
+    # InstantActivePowerPhase2 = Ratio(ser_client, "1;0;55;7;0;255")
+    # InstantActivePowerPhase3 = Ratio(ser_client, "1;0;75;7;0;255")
     
-    # Power Reactive
-    PowerReactiveImportPhase1 = Ratio(ser_client, "1;0;23;7;0;255")
-    PowerReactiveImportPhase2 = Ratio(ser_client, "1;0;43;7;0;255")
-    PowerReactiveImportPhase3 = Ratio(ser_client, "1;0;63;7;0;255")
+    # # Power Reactive
+    # PowerReactiveImportPhase1 = Ratio(ser_client, "1;0;23;7;0;255")
+    # PowerReactiveImportPhase2 = Ratio(ser_client, "1;0;43;7;0;255")
+    # PowerReactiveImportPhase3 = Ratio(ser_client, "1;0;63;7;0;255")
     
-    # Power Apparent
-    PowerApparentImportPhase1 = Ratio(ser_client, "1;0;29;7;0;255")
-    PowerApparentImportPhase2 = Ratio(ser_client, "1;0;49;7;0;255")
-    PowerApparentImportPhase3 = Ratio(ser_client, "1;0;69;7;0;255")
+    # # Power Apparent
+    # PowerApparentImportPhase1 = Ratio(ser_client, "1;0;29;7;0;255")
+    # PowerApparentImportPhase2 = Ratio(ser_client, "1;0;49;7;0;255")
+    # PowerApparentImportPhase3 = Ratio(ser_client, "1;0;69;7;0;255")
     
     instant_voltages = [
         (InstantVoltagePhase1, "g_MQAcquisition.gainVrms[phaseA]"),
-        # (InstantVoltagePhase2, "g_MQAcquisition.gainVrms[phaseB]"),
-        # (InstantVoltagePhase3, "g_MQAcquisition.gainVrms[phaseC]"),
+        (InstantVoltagePhase2, "g_MQAcquisition.gainVrms[phaseB]"),
+        (InstantVoltagePhase3, "g_MQAcquisition.gainVrms[phaseC]"),
         # (InstantCurrentPhase1, 'g_MQAcquisition.gainIrms[phaseA]'),
         # (InstantCurrentPhase2, 'g_MQAcquisition.gainIrms[phaseB]'),
         # (InstantCurrentPhase3, 'g_MQAcquisition.gainIrms[phaseC]'),
@@ -161,27 +164,54 @@ def start_calibration():
         # (PowerApparentImportPhase2, ),
         # (PowerApparentImportPhase3, ),
     ]
-
     
-    for i in range(1):
-        gain_value = read_calibration_data(ser_client)
-        
-        for register_object, gain_key in instant_voltages:
-            print(f'Input reference for {gain_key}. Input shall be exactly the same on test bench feedback (ex: 230.002)')
-            reference = input('reference: ')
-            reference = float(reference)
+    is_debug = False
+    if is_debug:
+        for i in range(5):
+            InstantVoltagePhase1.read_value()
+            print(f'Get meter measurement: {InstantVoltagePhase1.get_mean()}')
             
-            for trial in range(3):
-                print(f'Start calibration attemp {trial+1} of 3')
-                gain, is_calibrate = register_object.calculate_gain(reference, gain_value[gain_key])
+    else:
+        import json
+        for i in range(2):
+            print('Trial ',i+1,' of 3')
+            gain_value = read_calibration_data(ser_client)
+            for gain_key in gain_value:
+                print(f'{gain_key}: {gain_value[gain_key]}')            
+            calibration_data = translator.translate(gain_value, True)
+            print(json.dumps(gain_value,indent=1))
+            print(calibration_data)
+            break
+            for instant_register in instant_voltages:
+                register_object, gain_key = instant_register
+                print(f'Calculate {gain_key}')
+                gain, is_calibrate = register_object.calculate_gain(230.0, gain_value[gain_key]) #TODO: Read geny feedback programmatically
                 if not is_calibrate: 
-                    break
-                
+                    continue
+                print(f"Set {gain_key}: {gain}")
                 gain_value[gain_key] = gain
-                        
-        # gain = InstantVoltagePhase1.calculate_gain(230.0, gain_value['g_MQAcquisition.gainVrms[phaseA]'])
-        # print('SHOW GAIN')
-        # print(gain)
+            
+            gain_value['Phase Delay[PhaseA]'] = 0
+            gain_value['Phase Delay[PhaseB]'] = 0
+            gain_value['Phase Delay[PhaseC]'] = 0
+            gain_value['Phase Delay[PhaseN]'] = 0
+            gain_value['Phase Direction[PhaseN]'] = 1
+            
+            
+            print('\nSUMMARY')
+            for gain_key in gain_value:
+                print(f'{gain_key}: {gain_value[gain_key]}')            
+            calibration_data = translator.translate(gain_value, True)
+            import json
+            with open('./calibration_params.json', 'w') as f:
+                json.dump(gain_value, f)
+            print(f'Send calibration gain data')
+            result = ser_client.set_cosem_data(1, "0;128;96;14;80;255", 2, dlmsCosemUtil.cosemDataType.octet_string, calibration_data)
+            print(f'Result: {result}\n')
+                            
+            # gain = InstantVoltagePhase1.calculate_gain(230.0, gain_value['g_MQAcquisition.gainVrms[phaseA]'])
+            # print('SHOW GAIN')
+            # print(gain)
             
     ser_client.client_logout()
 
