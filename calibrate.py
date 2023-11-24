@@ -101,18 +101,64 @@ def start_calibration():
     # Login to meter
     ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL)
     
+    # Create object list
+    # Voltage
     InstantVoltagePhase1 = Ratio(ser_client, "1;0;32;7;0;255")
     InstantVoltagePhase2 = Ratio(ser_client, "1;0;52;7;0;255")
     InstantVoltagePhase3 = Ratio(ser_client, "1;0;72;7;0;255")
     
-    instant_voltages = [InstantVoltagePhase1, InstantVoltagePhase2, InstantVoltagePhase3]
-    voltage_gain_key = ["g_MQAcquisition.gainVrms[phaseA]", "g_MQAcquisition.gainVrms[phaseB]", "g_MQAcquisition.gainVrms[phaseC]"]
+    # Current
+    InstantCurrentPhase1 = Ratio(ser_client, "1;0;31;7;0;255")
+    InstantCurrentPhase2 = Ratio(ser_client, "1;0;51;7;0;255")
+    InstantCurrentPhase3 = Ratio(ser_client, "1;0;71;7;0;255")
+    
+    # Power factor
+    PowerFactorImportPhase1 = Ratio(ser_client, "1;0;33;7;0;255")
+    PowerFactorImportPhase2 = Ratio(ser_client, "1;0;53;7;0;255")
+    PowerFactorImportPhase3 = Ratio(ser_client, "1;0;73;7;0;255")
+    
+    # Power Active
+    InstantActivePowerPhase1 = Ratio(ser_client, "1;0;35;7;0;255")
+    InstantActivePowerPhase2 = Ratio(ser_client, "1;0;55;7;0;255")
+    InstantActivePowerPhase3 = Ratio(ser_client, "1;0;75;7;0;255")
+    
+    # Power Reactive
+    PowerReactiveImportPhase1 = Ratio(ser_client, "1;0;23;7;0;255")
+    PowerReactiveImportPhase2 = Ratio(ser_client, "1;0;43;7;0;255")
+    PowerReactiveImportPhase3 = Ratio(ser_client, "1;0;63;7;0;255")
+    
+    # Power Apparent
+    PowerApparentImportPhase1 = Ratio(ser_client, "1;0;29;7;0;255")
+    PowerApparentImportPhase2 = Ratio(ser_client, "1;0;49;7;0;255")
+    PowerApparentImportPhase3 = Ratio(ser_client, "1;0;69;7;0;255")
+    
+    instant_voltages = [
+        (InstantVoltagePhase1, "g_MQAcquisition.gainVrms[phaseA]"),
+        (InstantVoltagePhase2, "g_MQAcquisition.gainVrms[phaseB]"),
+        (InstantVoltagePhase3, "g_MQAcquisition.gainVrms[phaseC]"),
+        (InstantCurrentPhase1, 'g_MQAcquisition.gainIrms[phaseA]'),
+        (InstantCurrentPhase2, 'g_MQAcquisition.gainIrms[phaseB]'),
+        (InstantCurrentPhase3, 'g_MQAcquisition.gainIrms[phaseC]'),
+        # (PowerFactorImportPhase1, ),
+        # (PowerFactorImportPhase2, ),
+        # (PowerFactorImportPhase3, ),
+        # (InstantActivePowerPhase1, ),
+        # (InstantActivePowerPhase2, ),
+        # (InstantActivePowerPhase3, ),
+        # (PowerReactiveImportPhase1, ),
+        # (PowerReactiveImportPhase2, ),
+        # (PowerReactiveImportPhase3, ),
+        # (PowerApparentImportPhase1, ),
+        # (PowerApparentImportPhase2, ),
+        # (PowerApparentImportPhase3, ),
+    ]
+
     
     for i in range(1):
         gain_value = read_calibration_data(ser_client)
         print(gain_value['g_MQAcquisition.gainVrms[phaseA]'])
         
-        for register_object, gain_key in zip(instant_voltages, voltage_gain_key):
+        for register_object, gain_key in instant_voltages:
             gain = register_object.calculate_gain(230.0, gain_value[gain_key])
             gain_value[gain_key] = gain
             print(register_object.object, gain)
