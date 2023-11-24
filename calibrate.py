@@ -49,33 +49,40 @@ class Ratio:
         '''
             value and scalar shall be have the same keys and it's order
         '''
-        normalize_value = (np.array(self.value) * (10**self.scalar[0])) # NOTE: scalar data structure is [scalar, unit]
-        normalize_value = normalize_value.mean()
+        normalize_value = np.array(self.value) * (10**self.scalar[0]) # NOTE: scalar data structure is [scalar, unit]
+        normalize_value = float(normalize_value.mean())
+        print(f"mean: {normalize_value} {type(normalize_value)}")
         return normalize_value
     
-    def calculate_gain(self, reference:float, current_gain):
+    def calculate_gain(self, reference:float, current_gain) -> tuple:
         '''
             param:
                 reference is the value of actual data from test bench.
                 current_gain is meter's gain correspond to self.object
+            returns:
+                tuple (gain value, is_dont_care)
         '''
         assert self.dlms_client.is_connected
         
         self.read_scalar()
         self.read_value()
         
-        current_mesurement = self.get_mean()
-        if current_mesurement == 0:
+        meter_measurement = self.get_mean()
+        if meter_measurement == 0:
             return current_gain
-        self.last_ratio = reference/current_mesurement * current_gain
+        self.last_ratio = reference/meter_measurement * current_gain
+        self.last_ratio = int(self.last_ratio)
         
-        print(reference, current_mesurement, current_gain, self.last_ratio)
+        print(f"reference:{reference}, meter_measurement:{meter_measurement}, current_gain:{current_gain}, self.last_ratio:{self.last_ratio}, error: {(reference-meter_measurement) / reference}")
         
         error_treshold = 1 - self.threshold
-        error = (reference - current_mesurement) / reference
+        error = (reference - meter_measurement) / reference
+        print(f'acceptance error: {error_treshold}', end=' -- ')
         if abs(error) < error_treshold: # if the error near 0 then don't care calibration by passing the same gain value
-            return current_gain
-        return self.last_ratio
+            print('(PASSED)')
+            return current_gain, False
+        print('(NOPE)')
+        return self.last_ratio, True
 
 # UTILS
 def read_calibration_data(dlms_client:DlmsCosemClient):
@@ -100,6 +107,8 @@ def start_calibration():
     
     # Login to meter
     ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL)
+    # ser_client.client_logout()
+    # return
     
     # Create object list
     # Voltage
@@ -134,11 +143,11 @@ def start_calibration():
     
     instant_voltages = [
         (InstantVoltagePhase1, "g_MQAcquisition.gainVrms[phaseA]"),
-        (InstantVoltagePhase2, "g_MQAcquisition.gainVrms[phaseB]"),
-        (InstantVoltagePhase3, "g_MQAcquisition.gainVrms[phaseC]"),
-        (InstantCurrentPhase1, 'g_MQAcquisition.gainIrms[phaseA]'),
-        (InstantCurrentPhase2, 'g_MQAcquisition.gainIrms[phaseB]'),
-        (InstantCurrentPhase3, 'g_MQAcquisition.gainIrms[phaseC]'),
+        # (InstantVoltagePhase2, "g_MQAcquisition.gainVrms[phaseB]"),
+        # (InstantVoltagePhase3, "g_MQAcquisition.gainVrms[phaseC]"),
+        # (InstantCurrentPhase1, 'g_MQAcquisition.gainIrms[phaseA]'),
+        # (InstantCurrentPhase2, 'g_MQAcquisition.gainIrms[phaseB]'),
+        # (InstantCurrentPhase3, 'g_MQAcquisition.gainIrms[phaseC]'),
         # (PowerFactorImportPhase1, ),
         # (PowerFactorImportPhase2, ),
         # (PowerFactorImportPhase3, ),
@@ -156,20 +165,23 @@ def start_calibration():
     
     for i in range(1):
         gain_value = read_calibration_data(ser_client)
-        print(gain_value['g_MQAcquisition.gainVrms[phaseA]'])
         
         for register_object, gain_key in instant_voltages:
-            gain = register_object.calculate_gain(230.0, gain_value[gain_key])
-            gain_value[gain_key] = gain
-            print(register_object.object, gain)
+            print(f'Input reference for {gain_key}. Input shall be exactly the same on test bench feedback (ex: 230.002)')
+            reference = input('reference: ')
+            reference = float(reference)
+            
+            for trial in range(3):
+                print(f'Start calibration attemp {trial+1} of 3')
+                gain, is_calibrate = register_object.calculate_gain(reference, gain_value[gain_key])
+                if not is_calibrate: 
+                    break
+                
+                gain_value[gain_key] = gain
                         
         # gain = InstantVoltagePhase1.calculate_gain(230.0, gain_value['g_MQAcquisition.gainVrms[phaseA]'])
         # print('SHOW GAIN')
         # print(gain)
-
-        print(gain_value['g_MQAcquisition.gainVrms[phaseA]'])
-        gain_data = translator.translate(gain_value, to_bytes=True)
-        print(gain_data)
             
     ser_client.client_logout()
 
