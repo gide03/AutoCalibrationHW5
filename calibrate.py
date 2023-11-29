@@ -20,7 +20,10 @@ class commSetting:
     IS_RLRQ_PROTECTED = True
 
 class Ratio:
-    def __init__(self, dlms_client:DlmsCosemClient, object:str, num_of_sample:int=3, threshold:int=0.991):
+    def __init__(self, dlms_client:DlmsCosemClient, object:str, num_of_sample:int=3, threshold:int=0.99):
+        '''
+            Parameter perspective
+        '''
         assert dlms_client.is_connected
         
         self.dlms_client = dlms_client
@@ -40,8 +43,13 @@ class Ratio:
             return
         data_read = self.dlms_client.get_cosem_data(3, self.object, 3)
         self.scalar = data_read
+        
+    def read_instant_value(self):
+        assert self.dlms_client.is_connected
+        
+        return self.dlms_client.get_cosem_data(3, self.object, 2) * (10**self.scalar[0])
     
-    def read_value(self):
+    def sampling_data(self):
         assert self.dlms_client.is_connected
         
         self.value = []
@@ -68,12 +76,12 @@ class Ratio:
         '''
         assert self.dlms_client.is_connected
         
-        self.read_value()
+        self.sampling_data()
         
         meter_measurement = self.get_mean()
         if meter_measurement == 0:
             return current_gain
-        self.last_ratio = reference/meter_measurement * current_gain
+        self.last_ratio = (reference*current_gain)/meter_measurement
         self.last_ratio = int(self.last_ratio)
         
         print(f"reference:{reference}, meter_measurement:{meter_measurement}, current_gain:{current_gain}, new gain calculation:{self.last_ratio}, error: {(reference-meter_measurement) / reference}")
@@ -88,8 +96,16 @@ class Ratio:
         return self.last_ratio, True
 
 # UTILS
-def read_calibration_data(dlms_client:DlmsCosemClient):
+def read_calibration_data(dlms_client:DlmsCosemClient):    
     data_read = dlms_client.get_cosem_data(1, "0;128;96;14;80;255", 2)
+    try:
+        bytes(data_read).hex()
+    except:
+        print('error when read calibration data')
+        print('data: ', data_read)
+        print('retry to read')
+        return read_calibration_data(dlms_client)
+    
     output = translator.translate(data_read)
     return output
 # end of UTILS 
@@ -109,9 +125,8 @@ def start_calibration():
     )
     
     # Login to meter
+    ser_client.client_logout()
     ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL)
-    # ser_client.client_logout()
-    # return
     
     # Create object list
     # Voltage
@@ -119,7 +134,7 @@ def start_calibration():
     InstantVoltagePhase2 = Ratio(ser_client, "1;0;52;7;0;255")
     InstantVoltagePhase3 = Ratio(ser_client, "1;0;72;7;0;255")
     
-    # # Current
+    # Current
     # InstantCurrentPhase1 = Ratio(ser_client, "1;0;31;7;0;255")
     # InstantCurrentPhase2 = Ratio(ser_client, "1;0;51;7;0;255")
     # InstantCurrentPhase3 = Ratio(ser_client, "1;0;71;7;0;255")
@@ -168,52 +183,54 @@ def start_calibration():
     is_debug = False
     if is_debug:
         for i in range(5):
-            InstantVoltagePhase1.read_value()
-            print(f'Get meter measurement: {InstantVoltagePhase1.get_mean()}')
+            value = InstantVoltagePhase1.read_instant_value()
+            print(f'Get meter measurement: {value}')
             
-    else:
+    else:            
         import json
-        for i in range(2):
-            print('Trial ',i+1,' of 3')
+        
+        t0_measurement = [] # measurement before calibration
+        t1_measurement = [] # measurement after calibration
+        
+        LOOPS = 1
+        for i in range(LOOPS):
+            t0_measurement = []
+            t1_measurement = []
+            is_calibrated = []
+            
+            print(f'Trial {i+1} of {LOOPS}')
             gain_value = read_calibration_data(ser_client)
-            for gain_key in gain_value:
-                print(f'{gain_key}: {gain_value[gain_key]}')            
-            calibration_data = translator.translate(gain_value, True)
-            print(json.dumps(gain_value,indent=1))
-            print(calibration_data)
-            break
-            for instant_register in instant_voltages:
-                register_object, gain_key = instant_register
+            # print(f'Gain value: {gain_value}')
+            
+            for register_object, gain_key in instant_voltages:                
+                # Get instant value
+                instant_value =register_object.read_instant_value()
+                t0_measurement.append(instant_value)
+                
                 print(f'Calculate {gain_key}')
-                gain, is_calibrate = register_object.calculate_gain(230.0, gain_value[gain_key]) #TODO: Read geny feedback programmatically
-                if not is_calibrate: 
+                gain, is_calibrate = register_object.calculate_gain(239.0, gain_value[gain_key]) #TODO: Read geny feedback programmatically
+                if not is_calibrate:
+                    is_calibrated.append(False)
                     continue
+                is_calibrated.append(True)
                 print(f"Set {gain_key}: {gain}")
-                gain_value[gain_key] = gain
-            
-            gain_value['Phase Delay[PhaseA]'] = 0
-            gain_value['Phase Delay[PhaseB]'] = 0
-            gain_value['Phase Delay[PhaseC]'] = 0
-            gain_value['Phase Delay[PhaseN]'] = 0
-            gain_value['Phase Direction[PhaseN]'] = 1
-            
-            
-            print('\nSUMMARY')
-            for gain_key in gain_value:
-                print(f'{gain_key}: {gain_value[gain_key]}')            
-            calibration_data = translator.translate(gain_value, True)
-            import json
-            with open('./calibration_params.json', 'w') as f:
-                json.dump(gain_value, f)
+                gain_value[gain_key] = gain            
+                
             print(f'Send calibration gain data')
+            calibration_data = translator.translate(gain_value, to_bytes=True)
             result = ser_client.set_cosem_data(1, "0;128;96;14;80;255", 2, dlmsCosemUtil.cosemDataType.octet_string, calibration_data)
             print(f'Result: {result}\n')
-                            
-            # gain = InstantVoltagePhase1.calculate_gain(230.0, gain_value['g_MQAcquisition.gainVrms[phaseA]'])
-            # print('SHOW GAIN')
-            # print(gain)
             
-    ser_client.client_logout()
+            for register_object, gain_key in instant_voltages:
+                # Get instant value after calibration
+                instant_value =register_object.read_instant_value()
+                t1_measurement.append(instant_value)
+            
+            print('\nCompare instant value before and after calibration')
+            for prev, after, calibrated in zip(t0_measurement, t1_measurement, is_calibrated):
+                print(f'{register_object.object} measurement before->after calibration: {prev}->{after} ({"*" if calibrated else ""})')
+            
+        ser_client.client_logout()
 
 if __name__ == "__main__":
     start_calibration()

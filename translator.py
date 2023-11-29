@@ -106,15 +106,15 @@ def translate(data, to_bytes=False):
     if to_bytes:
         #Print Data to Set!
         mTempList = []
-        for enum in CalibrationParameter:
+        for enum in data:
             if CalibrationParameter[enum][0] == "short_unsigned":
-                mTempList.extend(serializeU16(CalibrationParameter[enum][1]))        
+                mTempList.extend(serializeU16(data[enum]))        
             elif CalibrationParameter[enum][0] == "short_signed":
-                mTempList.extend(serializeS16(CalibrationParameter[enum][1]))        
+                mTempList.extend(serializeS16(data[enum]))        
             elif CalibrationParameter[enum][0] == "byte_signed":
-                mTempList.extend(serializeS08(CalibrationParameter[enum][1]))        
+                mTempList.extend(serializeS08(data[enum]))        
             else:
-                mTempList.append(CalibrationParameter[enum][1])
+                mTempList.append(data[enum])
 
         # print(len(mTempList))
         # for x in range(len(mTempList)):
