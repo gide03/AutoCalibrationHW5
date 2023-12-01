@@ -81,7 +81,7 @@ class Ratio:
         
         meter_measurement = self.get_mean()
         if meter_measurement == 0:
-            return current_gain
+            return current_gain, False
         self.last_ratio = (reference*current_gain)/meter_measurement
         self.last_ratio = int(self.last_ratio)
         
@@ -128,7 +128,7 @@ def start_calibration():
     # create geny client
     print('Initialize GENY')
     geny = GENYClient('10.23.40.32')
-    geny.set_serial('/dev/ttyUSB3') # refer to server 
+    # geny.set_serial('COM13') # refer to server serial port
     
     # turn on meter
     geny.calib_stop()
@@ -136,8 +136,9 @@ def start_calibration():
     print('Initialize GENY -- OK')
     geny.calib_testCMD(ElementSelector._COMBINE_ALL, 230.0, 5.0, 0.5, 50, 1000, 5)
     geny.calib_execute()
-    print('Wait meter booting (HARD CODED 15 sec)')
-    time.sleep(15) # wait meter for booting up
+    BOOTING_TIME = 7
+    print(f'Wait meter booting (HARD CODED {BOOTING_TIME} sec)')
+    time.sleep(BOOTING_TIME) # wait meter for booting up
     
     # Login to meter
     print('Start calibrating')
@@ -155,19 +156,19 @@ def start_calibration():
     InstantVoltagePhase3 = Ratio(ser_client, "1;0;72;7;0;255")
     
     # Current
-    # InstantCurrentPhase1 = Ratio(ser_client, "1;0;31;7;0;255")
-    # InstantCurrentPhase2 = Ratio(ser_client, "1;0;51;7;0;255")
-    # InstantCurrentPhase3 = Ratio(ser_client, "1;0;71;7;0;255")
+    InstantCurrentPhase1 = Ratio(ser_client, "1;0;31;7;0;255")
+    InstantCurrentPhase2 = Ratio(ser_client, "1;0;51;7;0;255")
+    InstantCurrentPhase3 = Ratio(ser_client, "1;0;71;7;0;255")
     
     # # Power factor
     # PowerFactorImportPhase1 = Ratio(ser_client, "1;0;33;7;0;255")
     # PowerFactorImportPhase2 = Ratio(ser_client, "1;0;53;7;0;255")
     # PowerFactorImportPhase3 = Ratio(ser_client, "1;0;73;7;0;255")
     
-    # # Power Active
-    # InstantActivePowerPhase1 = Ratio(ser_client, "1;0;35;7;0;255")
-    # InstantActivePowerPhase2 = Ratio(ser_client, "1;0;55;7;0;255")
-    # InstantActivePowerPhase3 = Ratio(ser_client, "1;0;75;7;0;255")
+    # Power Active
+    InstantActivePowerPhase1 = Ratio(ser_client, "1;0;35;7;0;255")
+    InstantActivePowerPhase2 = Ratio(ser_client, "1;0;55;7;0;255")
+    InstantActivePowerPhase3 = Ratio(ser_client, "1;0;75;7;0;255")
     
     # # Power Reactive
     # PowerReactiveImportPhase1 = Ratio(ser_client, "1;0;23;7;0;255")
@@ -184,15 +185,15 @@ def start_calibration():
         (InstantVoltagePhase1, "g_MQAcquisition.gainVrms[phaseA]", "Ua_amplitude"),
         (InstantVoltagePhase2, "g_MQAcquisition.gainVrms[phaseB]", "Ub_amplitude"),
         (InstantVoltagePhase3, "g_MQAcquisition.gainVrms[phaseC]", "Uc_amplitude"),
-        # (InstantCurrentPhase1, 'g_MQAcquisition.gainIrms[phaseA]'),
-        # (InstantCurrentPhase2, 'g_MQAcquisition.gainIrms[phaseB]'),
-        # (InstantCurrentPhase3, 'g_MQAcquisition.gainIrms[phaseC]'),
+        (InstantCurrentPhase1, 'g_MQAcquisition.gainIrms[phaseA]', "Ia_amplitude"),
+        (InstantCurrentPhase2, 'g_MQAcquisition.gainIrms[phaseB]', "Ib_amplitude"),
+        (InstantCurrentPhase3, 'g_MQAcquisition.gainIrms[phaseC]', "Ic_amplitude"),
         # (PowerFactorImportPhase1, ),
         # (PowerFactorImportPhase2, ),
         # (PowerFactorImportPhase3, ),
-        # (InstantActivePowerPhase1, ),
-        # (InstantActivePowerPhase2, ),
-        # (InstantActivePowerPhase3, ),
+        (InstantActivePowerPhase1, "g_MQAcquisition.gainActiveE[phaseA]", "Pa"),
+        (InstantActivePowerPhase2, "g_MQAcquisition.gainActiveE[phaseB]", "Pb"),
+        (InstantActivePowerPhase3, "g_MQAcquisition.gainActiveE[phaseC]", "Pc"),
         # (PowerReactiveImportPhase1, ),
         # (PowerReactiveImportPhase2, ),
         # (PowerReactiveImportPhase3, ),
@@ -222,7 +223,6 @@ def start_calibration():
             
             print(f'Trial {i+1} of {LOOPS}')
             gain_value = read_calibration_data(ser_client)
-            # print(f'Gain value: {gain_value}')
             
             for register_object, gain_key, feedback_key in instant_voltages:                
                 # Get instant value
@@ -231,7 +231,12 @@ def start_calibration():
                 
                 print(f'Calculate {gain_key}')
                 feedback_data = geny.calib_readMeasurement()
-                gain, is_calibrate = register_object.calculate_gain(feedback_data[feedback_key], gain_value[gain_key]) #TODO: Read geny feedback programmatically
+                
+                #Read geny feedback programmatically and feed to register object
+                gain, is_calibrate = register_object.calculate_gain(
+                    feedback_data[feedback_key], 
+                    gain_value[gain_key]
+                )
                 if not is_calibrate:
                     is_calibrated.append(False)
                     continue
