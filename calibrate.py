@@ -12,12 +12,8 @@ import json
 import os
 
 BOOTING_TIME = 7
+ERROR_ACCEPTANCE = 0.01
 IS_GENY_ON = False
-
-# create geny client
-geny = GENYClient('10.23.40.32')
-geny.set_serial('COM13') # refer to server serial port
-
 
 class commSetting:
     METER_ADDR = 100
@@ -74,7 +70,7 @@ class Ratio:
         '''
         normalize_value = np.array(self.value) * (10**self.scalar[0]) # NOTE: scalar data structure is [scalar, unit]
         normalize_value = float(normalize_value.mean())
-        print(f"mean: {normalize_value} {type(normalize_value)}")
+        print(f"[Ratio:{self.object}] mean: {normalize_value} {type(normalize_value)}")
         return normalize_value
     
     def calculate_gain(self, reference:float, current_gain) -> tuple:
@@ -95,15 +91,15 @@ class Ratio:
         self.last_ratio = (reference*current_gain)/meter_measurement
         self.last_ratio = int(self.last_ratio)
         
-        print(f"reference:{reference}, meter_measurement:{meter_measurement}, current_gain:{current_gain}, new gain calculation:{self.last_ratio}, error: {(reference-meter_measurement) / reference}")
+        print(f"[Ratio:{self.object}] reference:{reference:.4f}, meter_measurement:{meter_measurement:.4f}, current_gain:{current_gain}, new gain calculation:{self.last_ratio}, error: {(reference-meter_measurement) / reference : .5f}")
         
         error_treshold = 1 - self.threshold
         error = (reference - meter_measurement) / reference
-        print(f'acceptance error: {error_treshold}', end=' -- ')
+        print(f'[Ratio:{self.object}] acceptance error must be less than {error_treshold:.5f}', end=' -- ')
         if abs(error) < error_treshold: # if the error near 0 then don't care calibration by passing the same gain value
-            print('(PASSED)')
+            print(f'[Ratio:{self.object}] (PASSED)')
             return current_gain, False
-        print('(NOPE)')
+        print(f'[Ratio:{self.object}] (NOPE)')
         return self.last_ratio, True
 
 # UTILS
@@ -114,11 +110,39 @@ def read_calibration_data(dlms_client:DlmsCosemClient):
     except:
         print('error when read calibration data')
         print('data: ', data_read)
-        print('retry to read')
+        print('retry to read calibration data')
+        print('re login dlms client')
+        
+        ser_client.client_logout()
+        meter_login()
         return read_calibration_data(dlms_client)
     
     output = translator.translate(data_read)
     return output
+
+def meter_login():
+    # loggin to dlms
+    
+    if ser_client.is_connected:
+        print('[meter_login] already connected')
+        return
+    
+    meter_logout() # make sure dlms connection
+    
+    try:
+        # print('[meter_login] login dlms')
+        result = ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL)
+        # print(f'[meter_login] login dlms - {result}')
+    except Exception as e:
+        print(f'[meter_login] login failed caused by communication problem. message {str(e)}')
+
+    
+def meter_logout():
+    try:
+        # print('[meter_logout] logout dlms')
+        ser_client.client_logout()
+    except:
+        pass
 
 def restart_geny():
     global IS_GENY_ON
@@ -149,82 +173,27 @@ def turnoff_geny():
 # end of UTILS 
 
 def fake_calibration():
-    ser_client = DlmsCosemClient(
-        port=constant.METER_SERIAL_PORT,
-        baudrate=19200,
-        parity=serial.PARITY_NONE,
-        bytesize=serial.EIGHTBITS,
-        stopbits=serial.STOPBITS_ONE,
-        timeout=0.3,
-        inactivity_timeout=20,
-        login_retry=1,
-        meter_addr=commSetting.METER_ADDR,
-        client_nb=commSetting.CLIENT_NUMBER,
-    )
-    
-    if not IS_GENY_ON: turnon_geny()
-    
     # loggin to dlms
-    print('Start calibrating')
-    try:
-        ser_client.client_logout()
-    except:
-        pass
-    print('Login dlms')
-    result = ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL)
-    print(f'Login dlms - {result}')
+    print('[fake_calibration] start calibrating')
+    print('[fake_calibration] Login dlms')
+    meter_login()
     
     # FORCE calibrating
     data_raw = [97, 168, 97, 168, 97, 168, 117, 48, 117, 48, 117, 48, 117, 48, 117, 48, 117, 48, 166, 4, 168, 97, 32, 78, 64, 156, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 128, 0, 1, 56, 7, 83, 0, 0, 0, 0, 0, 0, 0, 0, 128, 0, 62, 249, 3, 32, 1, 1, 1, 1, 0, 250, 0, 250, 0, 250, 0, 250, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
     result = ser_client.set_cosem_data(1, "0;128;96;14;80;255", 2, dlmsCosemUtil.cosemDataType.octet_string, data_raw)
-    print('Dummy calibration (FORCED) ',result)
-    ser_client.client_logout()
-    
-    turnoff_geny()
-    
+    print('[fake_calibration] Dummy calibration (FORCED) ',result)
+    meter_logout()    
 
 def read_instant_register():
-    ser_client = DlmsCosemClient(
-        port=constant.METER_SERIAL_PORT,
-        baudrate=19200,
-        parity=serial.PARITY_NONE,
-        bytesize=serial.EIGHTBITS,
-        stopbits=serial.STOPBITS_ONE,
-        timeout=0.3,
-        inactivity_timeout=20,
-        login_retry=1,
-        meter_addr=commSetting.METER_ADDR,
-        client_nb=commSetting.CLIENT_NUMBER,
-    )    
-    # turn on meter
-    if not IS_GENY_ON: turnon_geny()
+    '''
+        print meter measurement and calculate it's error reference to test bench feedback
+        return: dict errors of Voltage, Current, Power
+    '''
+    description = ('Voltage', 'Current', 'Power')
     
     # loggin to dlms
-    print('Start calibrating')
-    try:
-        ser_client.client_logout()
-    except:
-        pass
-    print('Login dlms')
-    result = ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL)
-    print(f'Login dlms - {result}')
-    
-    # register list. NOTE: Did this after login dlms
-    # Voltage
-    InstantVoltagePhase1 = Ratio(ser_client, "1;0;32;7;0;255")
-    InstantVoltagePhase2 = Ratio(ser_client, "1;0;52;7;0;255")
-    InstantVoltagePhase3 = Ratio(ser_client, "1;0;72;7;0;255")
-    
-    # Current
-    InstantCurrentPhase1 = Ratio(ser_client, "1;0;31;7;0;255")
-    InstantCurrentPhase2 = Ratio(ser_client, "1;0;51;7;0;255")
-    InstantCurrentPhase3 = Ratio(ser_client, "1;0;71;7;0;255")
-    
-    # Power Active
-    InstantActivePowerPhase1 = Ratio(ser_client, "1;0;35;7;0;255")
-    InstantActivePowerPhase2 = Ratio(ser_client, "1;0;55;7;0;255")
-    InstantActivePowerPhase3 = Ratio(ser_client, "1;0;75;7;0;255")
-    
+    meter_login()
+  
     instant_voltages = [
         # (Ratio instance, calibration parameter, geny feedback parameter)
         (InstantVoltagePhase1, "g_MQAcquisition.gainVrms[phaseA]", "Ua_amplitude"),
@@ -242,100 +211,65 @@ def read_instant_register():
         (InstantActivePowerPhase3, "g_MQAcquisition.gainActiveE[phaseC]", "Pc"),
     ]
     
+    print(f"[read_instant_register] Read test bench feedback")
     test_bench_feedback = geny.calib_readMeasurement()
-    print(f"Test bench feedback")
     
-    description = ('Voltage', 'Current', 'Power')
-    registers = (instant_voltages, instant_current, instant_power_active)
-    print("READING registers")
-    
+    print("[read_instant_register] READING registers")
     errors = {}
+    registers = (instant_voltages, instant_current, instant_power_active)
     for desc, instant_registers in zip(description, registers):        
-        print(f'Instant {desc}:')
+        print(f'[test_bench_feedback] Instant {desc}:')
         errors[desc] = []
         for register in instant_registers:
             reg, _calib_parameter, _feedback_parameter = register
             value = reg.read_instant_value()
-            print(f'Get meter measurement of {reg.object}: {value:.3f} ref: {test_bench_feedback[_feedback_parameter]:.3f}')
+            print(f'[read_instant_register] Get meter measurement of {reg.object}: {value:.3f} ref: {test_bench_feedback[_feedback_parameter]:.3f}')
             error = (test_bench_feedback[_feedback_parameter]-value)/test_bench_feedback[_feedback_parameter]
             errors[desc].append(error)
-        print()
+        # print()
         
-    print('logging out dlms')
-    ser_client.client_logout()
-    turnoff_geny()
+    print('[read_instant_register] Logout dlms')
+    meter_logout()
     return errors
 
 def start_calibration():
-    ser_client = DlmsCosemClient(
-        port=constant.METER_SERIAL_PORT,
-        baudrate=19200,
-        parity=serial.PARITY_NONE,
-        bytesize=serial.EIGHTBITS,
-        stopbits=serial.STOPBITS_ONE,
-        timeout=0.3,
-        inactivity_timeout=20,
-        login_retry=1,
-        meter_addr=commSetting.METER_ADDR,
-        client_nb=commSetting.CLIENT_NUMBER,
-    )
-    
-    # turn on meter
-    if not IS_GENY_ON: turnon_geny()
+    '''
+        start meter calibration, the meter shall be turned on
+    '''
     
     # Login to meter
-    print('Start calibrating')
-    try:
-        ser_client.client_logout()
-    except:
-        pass
-    print('Login dlms')
-    result = ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL)
+    print('[start_calibration] Start calibrating')
+    print('[start_calibration] Meter login')
+    meter_login()
     
-    # Create object list
-    # Voltage
-    InstantVoltagePhase1 = Ratio(ser_client, "1;0;32;7;0;255")
-    InstantVoltagePhase2 = Ratio(ser_client, "1;0;52;7;0;255")
-    InstantVoltagePhase3 = Ratio(ser_client, "1;0;72;7;0;255")
-    
-    # Current
-    InstantCurrentPhase1 = Ratio(ser_client, "1;0;31;7;0;255")
-    InstantCurrentPhase2 = Ratio(ser_client, "1;0;51;7;0;255")
-    InstantCurrentPhase3 = Ratio(ser_client, "1;0;71;7;0;255")
-    
-    # Power Active
-    InstantActivePowerPhase1 = Ratio(ser_client, "1;0;35;7;0;255")
-    InstantActivePowerPhase2 = Ratio(ser_client, "1;0;55;7;0;255")
-    InstantActivePowerPhase3 = Ratio(ser_client, "1;0;75;7;0;255")
-    
+    print('[start_calibration] Cathegorizing instant registers')
     instant_voltages = [
         # (Ratio instance, calibration parameter, geny feedback parameter)
         (InstantVoltagePhase1, "g_MQAcquisition.gainVrms[phaseA]", "Ua_amplitude"),
         (InstantVoltagePhase2, "g_MQAcquisition.gainVrms[phaseB]", "Ub_amplitude"),
         (InstantVoltagePhase3, "g_MQAcquisition.gainVrms[phaseC]", "Uc_amplitude"),
     ]
-    
     instant_current = [
         (InstantCurrentPhase1, 'g_MQAcquisition.gainIrms[phaseA]', "Ia_amplitude"),
         (InstantCurrentPhase2, 'g_MQAcquisition.gainIrms[phaseB]', "Ib_amplitude"),
         (InstantCurrentPhase3, 'g_MQAcquisition.gainIrms[phaseC]', "Ic_amplitude"),
     ]
-    
     instant_power_active = [
         (InstantActivePowerPhase1, "g_MQAcquisition.gainActiveE[phaseA]", "Pa"),
         (InstantActivePowerPhase2, "g_MQAcquisition.gainActiveE[phaseB]", "Pb"),
         (InstantActivePowerPhase3, "g_MQAcquisition.gainActiveE[phaseC]", "Pc"),
     ]
     
+    print('[start_calibration] Read gain register from meter')
     gain_value = read_calibration_data(ser_client)
+    print('[start_calibration] Calculate gain for rms voltage and current')
     for instant_registers in (instant_voltages, instant_current):
         is_calibrated = []
-        for register_object, gain_key, feedback_key in instant_registers:                
-            # Get instant value
-            print(f'Calculate {gain_key}')
-            feedback_data = geny.calib_readMeasurement()
+        for register_object, gain_key, feedback_key in instant_registers: # calculate new gain
+            print(f'[start_calibration] Calculate {gain_key}')
             
-            #Read geny feedback programmatically and feed to register object
+            # Read geny feedback programmatically and feed to register object
+            feedback_data = geny.calib_readMeasurement()
             gain, is_calibrate = register_object.calculate_gain(
                 feedback_data[feedback_key], 
                 gain_value[gain_key]
@@ -344,10 +278,11 @@ def start_calibration():
                 is_calibrated.append(False)
                 continue
             is_calibrated.append(True)
-            print(f"Set {gain_key}: {gain}")
-            gain_value[gain_key] = gain            
+            print(f"[start_calibration] Set {gain_key}: {gain}")
+            gain_value[gain_key] = gain
+            print()
             
-    print(f'Send calibration gain data')
+    print('[start_calibration] send calibration gain data')
     if not os.path.exists('./appdata'):
         os.mkdir('./appdata')
         
@@ -355,19 +290,99 @@ def start_calibration():
     with open(f'./appdata/{filename}', 'w') as f:
         json.dump(gain_value, f, indent=2)
         import pathlib
-        print(f'Calibration data sent is describe at: {pathlib.Path(__file__).parent.absolute()}/appdata/{filename}')
-    
+        print(f'[start_calibration] Calibration data sent is describe at: {pathlib.Path(__file__).parent.absolute()}/appdata/{filename}')
     calibration_data = translator.translate(gain_value, to_bytes=True)
     result = ser_client.set_cosem_data(1, "0;128;96;14;80;255", 2, dlmsCosemUtil.cosemDataType.octet_string, calibration_data)
-    print(f'Result: {result}\n')
+    print(f'[start_calibration] send calibration data result: {result}')
     
     # TODO: Calibrating power
-        
-    print('turn off geny')
-    ser_client.client_logout()
-    turnoff_geny()
+    time.sleep(2) # give a breath for meter
+    print('[start_calibration] CALIBRATING POWER')
+    print('[start_calibration] calculate instant RMS register error')
+    errors = read_instant_register()
+    # validate errors of voltage and current 
+    vi_errors = []
+    vi_errors.extend(errors['Voltage'])
+    vi_errors.extend(errors['Current']) 
+    
+    is_calibrate_error = True
+    # vi_errors -> error of [Va, Vb, Vc, Ia, Ib, Ic]
+    for err in vi_errors:
+        if err > ERROR_ACCEPTANCE:
+            is_calibrate_error = False
+    
+    print('[start_calibration] Read gain register from meter')
+    gain_value = read_calibration_data(ser_client) # NOTE: dlms is disconnected after execute this function
+    meter_login() # relogin after read_calibration_data()
+    if is_calibrate_error:
+        is_calibrated = []
+        for register_object, gain_key, feedback_key in instant_power_active: # calculate new gain
+            print(f'[start_calibration] Calculate {gain_key}')
+            
+            # Read geny feedback programmatically and feed to register object
+            feedback_data = geny.calib_readMeasurement()
+            gain, is_calibrate = register_object.calculate_gain(
+                feedback_data[feedback_key], 
+                gain_value[gain_key]
+            )
+            if not is_calibrate:
+                is_calibrated.append(False)
+                continue
+            is_calibrated.append(True)
+            print(f"[start_calibration] Set {gain_key}: {gain}")
+            gain_value[gain_key] = gain
+            print()
+    with open(f'./appdata/{filename}', 'w') as f:
+        json.dump(gain_value, f, indent=2)
+        import pathlib
+        print(f'[start_calibration] Calibration data sent is describe at: {pathlib.Path(__file__).parent.absolute()}/appdata/{filename}')
+    calibration_data = translator.translate(gain_value, to_bytes=True)
+    result = ser_client.set_cosem_data(1, "0;128;96;14;80;255", 2, dlmsCosemUtil.cosemDataType.octet_string, calibration_data)
+    print(f'[start_calibration] send calibration data result: {result}')
+    
+    meter_logout()
 
-if __name__ == "__main__":
+if __name__ == "__main__":    
+    print('[main] Initializing GENY testbench')
+    geny = GENYClient('10.23.40.32')
+    geny.set_serial('COM13') # refer to server serial port
+    
+    print('[main] Initializing serial DLMS client')
+    ser_client = DlmsCosemClient(
+        port=constant.METER_SERIAL_PORT,
+        baudrate=19200,
+        parity=serial.PARITY_NONE,
+        bytesize=serial.EIGHTBITS,
+        stopbits=serial.STOPBITS_ONE,
+        timeout=0.3,
+        inactivity_timeout=20,
+        login_retry=1,
+        meter_addr=commSetting.METER_ADDR,
+        client_nb=commSetting.CLIENT_NUMBER,
+    )
+    
+    if not IS_GENY_ON: turnon_geny()
+    
+    print('[main] Initializing register')
+    
+    # Create object list, dlms client shall be logged in first
+    meter_login()
+    # Voltage registers
+    InstantVoltagePhase1 = Ratio(ser_client, "1;0;32;7;0;255", threshold=1-ERROR_ACCEPTANCE)
+    InstantVoltagePhase2 = Ratio(ser_client, "1;0;52;7;0;255", threshold=1-ERROR_ACCEPTANCE)
+    InstantVoltagePhase3 = Ratio(ser_client, "1;0;72;7;0;255", threshold=1-ERROR_ACCEPTANCE)
+    # Current registers
+    InstantCurrentPhase1 = Ratio(ser_client, "1;0;31;7;0;255", threshold=1-ERROR_ACCEPTANCE)
+    InstantCurrentPhase2 = Ratio(ser_client, "1;0;51;7;0;255", threshold=1-ERROR_ACCEPTANCE)
+    InstantCurrentPhase3 = Ratio(ser_client, "1;0;71;7;0;255", threshold=1-ERROR_ACCEPTANCE)
+    # Power active registers
+    InstantActivePowerPhase1 = Ratio(ser_client, "1;0;35;7;0;255", threshold=1-ERROR_ACCEPTANCE)
+    InstantActivePowerPhase2 = Ratio(ser_client, "1;0;55;7;0;255", threshold=1-ERROR_ACCEPTANCE)
+    InstantActivePowerPhase3 = Ratio(ser_client, "1;0;75;7;0;255", threshold=1-ERROR_ACCEPTANCE)
+    meter_logout()
+    
     start_calibration()
     # fake_calibration()
     read_instant_register()
+
+    turnoff_geny()
