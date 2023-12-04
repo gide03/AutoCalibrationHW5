@@ -640,7 +640,6 @@ class GENYClient:
             'data'      : {}
         }
         result = self.transaction(payload, 'calib-feedback')
-        print()
         if type(result['ErrorCode']) != str:
             return result['result']
         else:
