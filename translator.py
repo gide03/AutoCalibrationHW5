@@ -74,32 +74,32 @@ CalibrationParameter = {
 
 def serializeU16(iData):
     mArrayReturn = []
-    mArrayReturn = list(struct.pack("<H", iData))
+    mArrayReturn = list(struct.pack(">H", iData))
     return mArrayReturn
 
 def deserializeU16(iData):
     mReturn = []
-    mReturn = struct.unpack("<H", bytearray(iData))
+    mReturn = struct.unpack(">H", bytearray(iData))
     return mReturn[0]
 
 def serializeS16(iData):
     mArrayReturn = []
-    mArrayReturn = list(struct.pack("<h", iData))
+    mArrayReturn = list(struct.pack(">h", iData))
     return mArrayReturn
 
 def deserializeS16(iData):
     mReturn = []
-    mReturn = struct.unpack("<h", bytearray(iData))
+    mReturn = struct.unpack(">h", bytearray(iData))
     return mReturn[0]
 
 def serializeS08(iData):
     mArrayReturn = []
-    mArrayReturn = list(struct.pack("<b", iData))
+    mArrayReturn = list(struct.pack(">b", iData))
     return mArrayReturn
 
 def deserializeS08(iData):
     mReturn = []
-    mReturn = struct.unpack("<b", bytearray(iData))
+    mReturn = struct.unpack(">b", bytearray(iData))
     return mReturn[0]
 
 def translate(data, to_bytes=False):
