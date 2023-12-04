@@ -8,6 +8,9 @@ import constant
 import translator
 import numpy as np
 import time
+import json
+
+BOOTING_TIME = 7
 
 class commSetting:
     METER_ADDR = 100
@@ -111,6 +114,143 @@ def read_calibration_data(dlms_client:DlmsCosemClient):
     return output
 # end of UTILS 
 
+def fake_calibrate():
+    ser_client = DlmsCosemClient(
+        port=constant.METER_SERIAL_PORT,
+        baudrate=19200,
+        parity=serial.PARITY_NONE,
+        bytesize=serial.EIGHTBITS,
+        stopbits=serial.STOPBITS_ONE,
+        timeout=0.3,
+        inactivity_timeout=20,
+        login_retry=1,
+        meter_addr=commSetting.METER_ADDR,
+        client_nb=commSetting.CLIENT_NUMBER,
+    )
+    
+    # create geny client
+    print('Initialize GENY')
+    geny = GENYClient('10.23.40.32')
+    geny.set_serial('COM13') # refer to server serial port
+    
+    # turn on meter
+    geny.calib_stop()
+    time.sleep(3)
+    print('Initialize GENY -- OK')
+    geny.calib_testCMD(ElementSelector._COMBINE_ALL, 230.0, 5.0, 0.5, 50, 1000, 5)
+    geny.calib_execute()
+    print(f'Wait meter booting (HARD CODED {BOOTING_TIME} sec)')
+    time.sleep(BOOTING_TIME) # wait meter for booting up
+    
+    # loggin to dlms
+    print('Start calibrating')
+    try:
+        ser_client.client_logout()
+    except:
+        pass
+    print('Login dlms')
+    result = ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL)
+    print(f'Login dlms - {result}')
+    
+    # FORCE calibrating
+    data_raw = [97, 168, 97, 168, 97, 168, 117, 48, 117, 48, 117, 48, 117, 48, 117, 48, 117, 48, 166, 4, 168, 97, 32, 78, 64, 156, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 128, 0, 1, 56, 7, 83, 0, 0, 0, 0, 0, 0, 0, 0, 128, 0, 62, 249, 3, 32, 1, 1, 1, 1, 0, 250, 0, 250, 0, 250, 0, 250, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    result = ser_client.set_cosem_data(1, "0;128;96;14;80;255", 2, dlmsCosemUtil.cosemDataType.octet_string, data_raw)
+    print('Dummy calibration (FORCED) ',result)
+    ser_client.client_logout()
+    
+    geny.calib_stop()
+    
+
+def read_instant_register():
+    ser_client = DlmsCosemClient(
+        port=constant.METER_SERIAL_PORT,
+        baudrate=19200,
+        parity=serial.PARITY_NONE,
+        bytesize=serial.EIGHTBITS,
+        stopbits=serial.STOPBITS_ONE,
+        timeout=0.3,
+        inactivity_timeout=20,
+        login_retry=1,
+        meter_addr=commSetting.METER_ADDR,
+        client_nb=commSetting.CLIENT_NUMBER,
+    )
+    
+    # create geny client
+    print('Initialize GENY')
+    geny = GENYClient('10.23.40.32')
+    geny.set_serial('COM13') # refer to server serial port
+    
+    # turn on meter
+    geny.calib_stop()
+    time.sleep(3)
+    print('Initialize GENY -- OK')
+    geny.calib_testCMD(ElementSelector._COMBINE_ALL, 230.0, 5.0, 0.5, 50, 1000, 5)
+    geny.calib_execute()
+    print(f'Wait meter booting (HARD CODED {BOOTING_TIME} sec)')
+    time.sleep(BOOTING_TIME) # wait meter for booting up
+    
+    # loggin to dlms
+    print('Start calibrating')
+    try:
+        ser_client.client_logout()
+    except:
+        pass
+    print('Login dlms')
+    result = ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL)
+    print(f'Login dlms - {result}')
+    
+    # register list. NOTE: Did this after login dlms
+    # Voltage
+    InstantVoltagePhase1 = Ratio(ser_client, "1;0;32;7;0;255")
+    InstantVoltagePhase2 = Ratio(ser_client, "1;0;52;7;0;255")
+    InstantVoltagePhase3 = Ratio(ser_client, "1;0;72;7;0;255")
+    
+    # Current
+    InstantCurrentPhase1 = Ratio(ser_client, "1;0;31;7;0;255")
+    InstantCurrentPhase2 = Ratio(ser_client, "1;0;51;7;0;255")
+    InstantCurrentPhase3 = Ratio(ser_client, "1;0;71;7;0;255")
+    
+    # Power Active
+    InstantActivePowerPhase1 = Ratio(ser_client, "1;0;35;7;0;255")
+    InstantActivePowerPhase2 = Ratio(ser_client, "1;0;55;7;0;255")
+    InstantActivePowerPhase3 = Ratio(ser_client, "1;0;75;7;0;255")
+    
+    instant_voltages = [
+        # (Ratio instance, calibration parameter, geny feedback parameter)
+        (InstantVoltagePhase1, "g_MQAcquisition.gainVrms[phaseA]", "Ua_amplitude"),
+        (InstantVoltagePhase2, "g_MQAcquisition.gainVrms[phaseB]", "Ub_amplitude"),
+        (InstantVoltagePhase3, "g_MQAcquisition.gainVrms[phaseC]", "Uc_amplitude"),
+    ]
+    instant_current = [
+        (InstantCurrentPhase1, 'g_MQAcquisition.gainIrms[phaseA]', "Ia_amplitude"),
+        (InstantCurrentPhase2, 'g_MQAcquisition.gainIrms[phaseB]', "Ib_amplitude"),
+        (InstantCurrentPhase3, 'g_MQAcquisition.gainIrms[phaseC]', "Ic_amplitude"),
+    ]
+    instant_power_active = [
+        (InstantActivePowerPhase1, "g_MQAcquisition.gainActiveE[phaseA]", "Pa"),
+        (InstantActivePowerPhase2, "g_MQAcquisition.gainActiveE[phaseB]", "Pb"),
+        (InstantActivePowerPhase3, "g_MQAcquisition.gainActiveE[phaseC]", "Pc"),
+    ]
+    
+    test_bench_feedback = geny.calib_readMeasurement()
+    print(f"Test bench feedback")
+    
+    description = ('Voltage', 'Current', 'Power')
+    registers = (instant_voltages, instant_current, instant_power_active)
+    print("READING registers")
+    for desc, instant_registers in zip(description, registers):        
+        print(f'Instant {desc}:')
+        for register in instant_registers:
+            reg, _calib_parameter, _feedback_parameter = register
+            value = reg.read_instant_value()
+            print(f'Get meter measurement of {reg.object}: {value:.3f} ref: {test_bench_feedback[_feedback_parameter]:.3f}')
+        print()
+        
+    print('logging out dlms')
+    ser_client.client_logout()
+    print('turn on geny')
+    geny.calib_stop()
+
 def start_calibration():
     ser_client = DlmsCosemClient(
         port=constant.METER_SERIAL_PORT,
@@ -128,7 +268,7 @@ def start_calibration():
     # create geny client
     print('Initialize GENY')
     geny = GENYClient('10.23.40.32')
-    # geny.set_serial('COM13') # refer to server serial port
+    geny.set_serial('COM13') # refer to server serial port
     
     # turn on meter
     geny.calib_stop()
@@ -185,15 +325,15 @@ def start_calibration():
         (InstantVoltagePhase1, "g_MQAcquisition.gainVrms[phaseA]", "Ua_amplitude"),
         (InstantVoltagePhase2, "g_MQAcquisition.gainVrms[phaseB]", "Ub_amplitude"),
         (InstantVoltagePhase3, "g_MQAcquisition.gainVrms[phaseC]", "Uc_amplitude"),
-        (InstantCurrentPhase1, 'g_MQAcquisition.gainIrms[phaseA]', "Ia_amplitude"),
-        (InstantCurrentPhase2, 'g_MQAcquisition.gainIrms[phaseB]', "Ib_amplitude"),
-        (InstantCurrentPhase3, 'g_MQAcquisition.gainIrms[phaseC]', "Ic_amplitude"),
+        # (InstantCurrentPhase1, 'g_MQAcquisition.gainIrms[phaseA]', "Ia_amplitude"),
+        # (InstantCurrentPhase2, 'g_MQAcquisition.gainIrms[phaseB]', "Ib_amplitude"),
+        # (InstantCurrentPhase3, 'g_MQAcquisition.gainIrms[phaseC]', "Ic_amplitude"),
         # (PowerFactorImportPhase1, ),
         # (PowerFactorImportPhase2, ),
         # (PowerFactorImportPhase3, ),
-        (InstantActivePowerPhase1, "g_MQAcquisition.gainActiveE[phaseA]", "Pa"),
-        (InstantActivePowerPhase2, "g_MQAcquisition.gainActiveE[phaseB]", "Pb"),
-        (InstantActivePowerPhase3, "g_MQAcquisition.gainActiveE[phaseC]", "Pc"),
+        # (InstantActivePowerPhase1, "g_MQAcquisition.gainActiveE[phaseA]", "Pa"),
+        # (InstantActivePowerPhase2, "g_MQAcquisition.gainActiveE[phaseB]", "Pb"),
+        # (InstantActivePowerPhase3, "g_MQAcquisition.gainActiveE[phaseC]", "Pc"),
         # (PowerReactiveImportPhase1, ),
         # (PowerReactiveImportPhase2, ),
         # (PowerReactiveImportPhase3, ),
@@ -202,63 +342,72 @@ def start_calibration():
         # (PowerApparentImportPhase3, ),
     ]
     
-    is_debug = False
-    if is_debug:
-        for i in range(5):
-            for register in instant_voltages:
-                reg, _calib_parameter, _feedback_parameter = register
-                value = reg.read_instant_value()
-                print(f'Get meter measurement of {reg.object}: {value}')
-            print()
-            
-    else:                  
-        t0_measurement = [] # measurement before calibration
-        t1_measurement = [] # measurement after calibration
+    instant_current = [
+        (InstantCurrentPhase1, 'g_MQAcquisition.gainIrms[phaseA]', "Ia_amplitude"),
+        (InstantCurrentPhase2, 'g_MQAcquisition.gainIrms[phaseB]', "Ib_amplitude"),
+        (InstantCurrentPhase3, 'g_MQAcquisition.gainIrms[phaseC]', "Ic_amplitude"),
+    ]
+    
+    instant_power_active = [
+        (InstantActivePowerPhase1, "g_MQAcquisition.gainActiveE[phaseA]", "Pa"),
+        (InstantActivePowerPhase2, "g_MQAcquisition.gainActiveE[phaseB]", "Pb"),
+        (InstantActivePowerPhase3, "g_MQAcquisition.gainActiveE[phaseC]", "Pc"),
+    ]
+    
+    
+    t0_measurement = [] # measurement before calibration
+    t1_measurement = [] # measurement after calibration
+    
+    LOOPS = 1
+    for i in range(LOOPS):
+        t0_measurement = []
+        t1_measurement = []
+        is_calibrated = []
         
-        LOOPS = 1
-        for i in range(LOOPS):
-            t0_measurement = []
-            t1_measurement = []
-            is_calibrated = []
+        print(f'Trial {i+1} of {LOOPS}')
+        gain_value = read_calibration_data(ser_client)
+        
+        for register_object, gain_key, feedback_key in instant_voltages:                
+            # Get instant value
+            instant_value =register_object.read_instant_value()
+            t0_measurement.append(instant_value)
             
-            print(f'Trial {i+1} of {LOOPS}')
-            gain_value = read_calibration_data(ser_client)
+            print(f'Calculate {gain_key}')
+            feedback_data = geny.calib_readMeasurement()
             
-            for register_object, gain_key, feedback_key in instant_voltages:                
-                # Get instant value
-                instant_value =register_object.read_instant_value()
-                t0_measurement.append(instant_value)
-                
-                print(f'Calculate {gain_key}')
-                feedback_data = geny.calib_readMeasurement()
-                
-                #Read geny feedback programmatically and feed to register object
-                gain, is_calibrate = register_object.calculate_gain(
-                    feedback_data[feedback_key], 
-                    gain_value[gain_key]
-                )
-                if not is_calibrate:
-                    is_calibrated.append(False)
-                    continue
-                is_calibrated.append(True)
-                print(f"Set {gain_key}: {gain}")
-                gain_value[gain_key] = gain            
-                
-            print(f'Send calibration gain data')
-            calibration_data = translator.translate(gain_value, to_bytes=True)
-            result = ser_client.set_cosem_data(1, "0;128;96;14;80;255", 2, dlmsCosemUtil.cosemDataType.octet_string, calibration_data)
-            print(f'Result: {result}\n')
+            #Read geny feedback programmatically and feed to register object
+            gain, is_calibrate = register_object.calculate_gain(
+                feedback_data[feedback_key], 
+                gain_value[gain_key]
+            )
+            if not is_calibrate:
+                is_calibrated.append(False)
+                continue
+            is_calibrated.append(True)
+            print(f"Set {gain_key}: {gain}")
+            gain_value[gain_key] = gain            
             
-            for register_object, gain_key, feedback_key in instant_voltages:
-                # Get instant value after calibration
-                instant_value =register_object.read_instant_value()
-                t1_measurement.append(instant_value)
-            
-            print('\nCompare instant value before and after calibration')
-            for prev, after, calibrated in zip(t0_measurement, t1_measurement, is_calibrated):
-                print(f'{register_object.object} measurement before->after calibration: {prev}->{after} ({"*" if calibrated else ""})')
-            
-        ser_client.client_logout()
+        print(f'Send calibration gain data')
+        print(json.dumps(gain_value, indent=2))
+        calibration_data = translator.translate(gain_value, to_bytes=True)
+        result = ser_client.set_cosem_data(1, "0;128;96;14;80;255", 2, dlmsCosemUtil.cosemDataType.octet_string, calibration_data)
+        # print(f'Result: {result}\n')
+        
+        for register_object, gain_key, feedback_key in instant_voltages:
+            # Get instant value after calibration
+            instant_value =register_object.read_instant_value()
+            t1_measurement.append(instant_value)
+        
+        print('\nCompare instant value before and after calibration')
+        for prev, after, calibrated in zip(t0_measurement, t1_measurement, is_calibrated):
+            print(f'{register_object.object} measurement before->after calibration: {prev}->{after} ({"*" if calibrated else ""})')
+        
+    print('turn off geny')
+    result = ser_client.client_logout()
+    print(result)
+
+    geny.calib_stop()
 
 if __name__ == "__main__":
-    start_calibration()
+    # start_calibration()
+    read_instant_register()
