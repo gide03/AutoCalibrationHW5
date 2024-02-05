@@ -18,7 +18,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 # Create a logger
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+# logger.setLevel(logging.)
 
 class CosemObject:
     def __init__(self, name, classId, obis):
@@ -245,11 +245,37 @@ class Calibration:
         self.ser_client.client_logout()
                 
     def read_calibration_data(self, verbose = False):
-        logger.info('result login dlms - read calibration data')
+        logger.info('read calibration data')
         data_read = self.ser_client.get_cosem_data(1, "0;128;96;14;80;255", 2)            
         self.calibrationRegister.extract(data_read)
         if verbose == True:
             self.calibrationRegister.info()
+    
+    def write_calibration_data(self) -> bool:
+        retry = 3
+        calibrationBuffer = self.calibrationRegister.dataFrame()
+        for i in range(retry):
+            try:
+                logger.debug(f'try to send data calibration. Attemp {i+1} of {retry}')
+                # calibrationBuffer = self.calibrationRegister.dataFrame()
+                result = self.ser_client.set_cosem_data(
+                    class_id=1,
+                    obis_code='0;128;96;14;80;255',
+                    att_id=2,
+                    dtype=9,
+                    value=calibrationBuffer
+                )
+                return result
+            except:
+                if i < retry-1:
+                    logger.warning(f'timeout. Data sent: {calibrationBuffer}')
+                    self.logout()
+                    self.login()
+                    continue
+                
+        logger.critical(f'TIMEOUT!!. Turn off test bench')
+        geny.close()
+        raise TimeoutError
     
     def read_meter_setup(self, verbose=False) -> list:
         '''
@@ -353,14 +379,7 @@ class Calibration:
             logger.info(f'Apply new gain for {target[1].name} from {target[1].value} to {newGain}')
             target[1].value = newGain
 
-        calibrationBuffer = self.calibrationRegister.dataFrame()
-        result = self.ser_client.set_cosem_data(
-            class_id=1,
-            obis_code='0;128;96;14;80;255',
-            att_id=2,
-            dtype=9,
-            value=calibrationBuffer
-        )
+        result = self.write_calibration_data()
         logger.info(f'set calibration register. result: {result}')
         
         if result == 0:
@@ -373,10 +392,57 @@ class Calibration:
                 # calculate error before
                 currentError = ((genyFeedback - meterMeasurement) / genyFeedback) * 100
                 errorAfter.append(currentError)
-        
         logger.info(f'Error Before: {errorBefore}')
         logger.info(f'Error After : {errorAfter}')        
+    
+    def calibratePowerActive(self, genySamplingFeedback):
+        logger.info('fetching calibration register')
+        self.read_calibration_data()
         
+        errorBefore = []
+        errorAfter = []
+        
+        targets = (
+            (self.InstantActivePowerPhase1, self.calibrationRegister.GainActiveE_A, genySamplingFeedback.PowerActive_A.value),
+            (self.InstantActivePowerPhase2, self.calibrationRegister.GainActiveE_B, genySamplingFeedback.PowerActive_B.value),
+            (self.InstantActivePowerPhase3, self.calibrationRegister.GainActiveE_C, genySamplingFeedback.PowerActive_C.value),
+        )
+        # TODO: calibrate instant voltage and current
+        for target in targets:
+            #TODO: New Gain = (Previous Gain * Referensi Geny) / Average Instant Vrms    
+            instanRegister = target[0]
+            meterMeasurement = self.fetch_register(instanRegister)
+            prevGain = target[1].value
+            genyFeedback = target[2]
+            
+            # calculate error before
+            currentError = ((genyFeedback - meterMeasurement) / genyFeedback) * 100
+            errorBefore.append(currentError)
+            
+            # calculate new gain
+            logger.info(f'Calculate new gain for {target[1].name}')
+            newGain = (prevGain * genyFeedback) / meterMeasurement
+            logger.debug(f'PrefGain: {prevGain} GenyFeedback: {genyFeedback} MeterMeasurement: {meterMeasurement}')
+            newGain = int(newGain)
+            logger.info(f'Apply new gain for {target[1].name} from {target[1].value} to {newGain}')
+            target[1].value = newGain
+
+        result = self.write_calibration_data()
+        logger.info(f'set calibration register. result: {result}')
+        
+        if result == 0:
+            for target in targets:
+                instanRegister = target[0]
+                meterMeasurement = self.fetch_register(instanRegister)
+                prevGain = target[1].value
+                genyFeedback = target[2]
+                
+                # calculate error before
+                currentError = ((genyFeedback - meterMeasurement) / genyFeedback) * 100
+                errorAfter.append(currentError)        
+        logger.info(f'Error Before: {errorBefore}')
+        logger.info(f'Error After : {errorAfter}')
+    
     def fetch_register(self, register):
         logger.info('Fetch instant register value')
         
@@ -401,7 +467,7 @@ class Calibration:
 # MAIN PROGRAM START HERE
 if __name__ == '__main__':
     logger.info('SOFTWARE INITIALIZATION')
-    geny = GenyTestBench('/dev/ttyUSB1', 115200)
+    geny = GenyTestBench('/dev/ttyUSB4', 115200)
     meter = Calibration('/dev/ttyUSB0')
 
     logger.info('TURNING ON METER')
@@ -415,12 +481,13 @@ if __name__ == '__main__':
     geny.setPowerFactor(60, inDegree=True)
     geny.setVoltage(220)
     geny.setCurrent(5)
+    geny.setCalibrationConstants(1000, 5)
     logger.debug('APPLY CONFIGURATION')
     geny.apply()
-    logger.info('WAIT METER FOR BOTTING (10 second)')
-    time.sleep(10)
+    logger.info('WAIT METER FOR BOTTING (10 second)')    
+    time.sleep(15)
         
-    logger.info('LOGIN TO METER')
+    logger.info('LOGIN TO METER') 
     try:
         meter.logout()
     except:
@@ -437,8 +504,9 @@ if __name__ == '__main__':
             meter.configure_meter_setup()
             break
         except:
-            meter.logout()
-            meter.login()
+            if i<setupRetryAttemp-1:
+                meter.logout()
+                meter.login()
         if i == setupRetryAttemp-1:
             geny.close()
     
@@ -449,10 +517,14 @@ if __name__ == '__main__':
     meter.calibrateVoltageAndCurrent(readBackRegisters)
     
     # STEP 3: Calibrate Power Active
-    # logger.info('CALIBRATING POWER ACTIVE')
-    # meter.read_calibration_data()
-    # readBackRegisters = geny.readBackSamplingData()
-    #TODO: CALIBRATE ACTIVE ENERGY
+    logger.info('CALIBRATING POWER ACTIVE')
+    meter.read_calibration_data()
+    readBackRegisters = geny.readBackSamplingData()
+    meter.calibratePowerActive(readBackRegisters)
+    for i in range(3):
+        print('Reading errors')
+        geny.readBackError(verbose=True)
+        time.sleep(1)
     
     # STEP x: Finishing
     logger.info('FINISHING')

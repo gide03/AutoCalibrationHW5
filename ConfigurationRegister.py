@@ -63,7 +63,7 @@ class Register:
             elif self.c_stringDtype == 'int32':
                 return Register.serializeS32(self.value)
         except:
-            print(f'Error at parsing: {self.name}')
+            print(f'Error at parsing: {self.name}. dtype: {self.c_stringDtype} value: {self.value}')
             exit()
 
     # SERIALIZE and DESERIALIZE
@@ -140,7 +140,7 @@ class RegisterWrapper:
         # if len(dataFrame) != byteSize:
             # raise Exception('dataFrame not valid')
         
-        print('extracting dataFrame')
+        # print('extracting dataFrame')
         for regName in objectList:
             register = objectList[regName]
             registerSize = register.size
