@@ -13,6 +13,8 @@ from lib.DLMS_Client.DlmsCosemClient import DlmsCosemClient
 
 from ConfigurationRegister import Register, RegisterWrapper
 
+PHASE_ANGLE_CONFIG = 60
+
 # Configure the logging module
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(funcName)s - %(message)s')
 
@@ -194,6 +196,9 @@ class Calibration:
     InstantActivePowerPhase1 = CosemObject('InstantActivePowerPhase1', 3, "1;0;35;7;0;255")
     InstantActivePowerPhase2 = CosemObject('InstantActivePowerPhase2', 3, "1;0;55;7;0;255")
     InstantActivePowerPhase3 = CosemObject('InstantActivePowerPhase3', 3, "1;0;75;7;0;255")
+    PhaseAnglePhase1 = CosemObject('PhaseAnglePhase1', 3, "1;0;81;7;40;255")
+    PhaseAnglePhase2 = CosemObject('PhaseAnglePhase2', 3, "1;0;81;7;51;255")
+    PhaseAnglePhase3 = CosemObject('PhaseAnglePhase3', 3, "1;0;81;7;62;255")
     
     def __init__(self, comPort):
         self.comPort = comPort
@@ -252,7 +257,7 @@ class Calibration:
             self.calibrationRegister.info()
     
     def write_calibration_data(self) -> bool:
-        retry = 3
+        retry = 5
         calibrationBuffer = self.calibrationRegister.dataFrame()
         for i in range(retry):
             try:
@@ -265,16 +270,21 @@ class Calibration:
                     dtype=9,
                     value=calibrationBuffer
                 )
+                calData = self.ser_client.get_cosem_data(1, "0;128;96;14;80;255", 2)            
+                result = calData == calibrationBuffer
                 return result
             except:
                 if i < retry-1:
                     logger.warning(f'timeout. Data sent: {calibrationBuffer}')
                     self.logout()
                     self.login()
+                    calData = self.ser_client.get_cosem_data(1, "0;128;96;14;80;255", 2)            
+                    if calData == calibrationBuffer:
+                        print('MATCH')
+                        return True
                     continue
                 
         logger.critical(f'TIMEOUT!!. Turn off test bench')
-        geny.close()
         raise TimeoutError
     
     def fetch_meter_setup(self, verbose=False) -> list:
@@ -346,8 +356,10 @@ class Calibration:
             logger.info(f'{objectName}, prevGain = {prevGain} newGain = {newGain}')
     
     def calibratePhaseDelay(self, genySamplingFeedback):
+        global PHASE_ANGLE_CONFIG
+        
         logger.info('fetching initial calibration data')
-        self.fetch_calibration_data()
+        self.fetch_calibration_data(verbose=True)
         logger.info('update phase delay parameters to 0')
         self.calibrationRegister.PhaseDelayA.value = 0
         self.calibrationRegister.PhaseDelayB.value = 0
@@ -358,7 +370,31 @@ class Calibration:
         logger.info('write calibration data')
         result = self.write_calibration_data()
         logger.info(f'calibration data result: {result}')
-                
+        
+        # NOTE: DON'T CHANGE THIS BLOCK WIHTOUT INFORM YOUR TEAM
+        targets = (
+            (self.PhaseAnglePhase1, self.calibrationRegister.PhaseDelayA, PHASE_ANGLE_CONFIG),
+            (self.PhaseAnglePhase2, self.calibrationRegister.PhaseDelayB, PHASE_ANGLE_CONFIG),
+            (self.PhaseAnglePhase3, self.calibrationRegister.PhaseDelayC, PHASE_ANGLE_CONFIG)
+        )
+        for idx,target in enumerate(targets):
+            #TODO: New Gain = (Previous Gain * Referensi Geny) / Average Instant Vrms    
+            instanRegister = target[0]
+            meterMeasurement = self.fetch_register(instanRegister) - (120*idx)
+            prevGain = target[1].value
+            genyFeedback = target[2]
+            
+            # calculate error before
+            newPhaseDelay = (meterMeasurement - genyFeedback)*100
+            if newPhaseDelay<0:
+                # newPhaseDelay = (genyFeedback - meterMeasurement)*100
+                newPhaseDelay = 0
+            newPhaseDelay = int(newPhaseDelay)
+            logger.info(f'Apply new phase delay for {target[1].name} from {target[1].value} to {newPhaseDelay}')
+            target[1].value = newPhaseDelay
+        
+        result = self.write_calibration_data()
+        logger.info(f'set calibration register. result: {result}')        
         
     def calibrateVoltageAndCurrent(self, genySamplingFeedback):
         logger.info('fetching calibration register')
@@ -388,6 +424,7 @@ class Calibration:
             
             # calculate new gain
             logger.info(f'Calculate new gain for {target[1].name}')
+            logger.debug(f'PrevGain: {prevGain} GenyFeedBack: {genyFeedback} MeterMasurement: {meterMeasurement}')
             newGain = (prevGain * genyFeedback) / meterMeasurement
             newGain = int(newGain)
             logger.info(f'Apply new gain for {target[1].name} from {target[1].value} to {newGain}')
@@ -480,10 +517,12 @@ class Calibration:
 
 # MAIN PROGRAM START HERE
 def main():
+    global PHASE_ANGLE_CONFIG
+    
     logger.info('SOFTWARE INITIALIZATION')
     geny = GenyTestBench('/dev/ttyUSB1', 115200)
     meter = Calibration('/dev/ttyUSB0')
-
+        
     logger.info('TURNING ON METER')
     geny.close()
     time.sleep(2)
@@ -492,14 +531,14 @@ def main():
     geny.setPowerSelector(PowerSelector._3P4W_ACTIVE)
     geny.setElementSelector(ElementSelector.EnergyErrorCalibration._COMBINE_ALL)
     geny.setVoltageRange(VoltageRange.YC99T_5C._380V)
-    geny.setPowerFactor(60, inDegree=True)
+    geny.setPowerFactor(PHASE_ANGLE_CONFIG, inDegree=True)
     geny.setVoltage(230)
-    geny.setCurrent(5)
+    geny.setCurrent(30)
     geny.setCalibrationConstants(1000, 5)
     logger.debug('APPLY CONFIGURATION')
     geny.apply()
     logger.info('WAIT METER FOR BOTTING (10 second)')    
-    time.sleep(15)
+    time.sleep(10)
         
     logger.info('LOGIN TO METER') 
     try:
@@ -528,32 +567,28 @@ def main():
     # STEP 2: Calibrate phase delay
     logger.info('CALIBRATING Phase Delay')
     readBackRegisters = geny.readBackSamplingData()
+    # TODO: Add phase direction protection
     meter.calibratePhaseDelay(readBackRegisters)
-    
-    
     
     # STEP 3: Calibrate Vrms and Irms
     logger.info('CALIBRATING Vrms Irms')
     meter.fetch_calibration_data()
-    meter.calibrationRegister.PhDirectionA.value = -1
-    meter.calibrationRegister.PhDirectionB.value = -1
-    meter.calibrationRegister.PhDirectionC.value = -1
-    meter.calibrationRegister.PhDirectionN.value = -1
     readBackRegisters = geny.readBackSamplingData()
     meter.calibrateVoltageAndCurrent(readBackRegisters)
     
     # STEP 4: Calibrate Power Active
     logger.info('CALIBRATING POWER ACTIVE')
     meter.fetch_calibration_data()
-    meter.calibrationRegister.PhDirectionA.value = -1
-    meter.calibrationRegister.PhDirectionB.value = -1
-    meter.calibrationRegister.PhDirectionC.value = -1
-    meter.calibrationRegister.PhDirectionN.value = -1
     readBackRegisters = geny.readBackSamplingData()
     meter.calibratePowerActive(readBackRegisters)
     for i in range(3):
         print('Reading errors')
-        geny.readBackError(verbose=True)
+        errors = geny.readBackError()
+        for reg in errors:
+            if isinstance(reg.dtype, float):
+                print(f'{reg.name} -> {reg.value:.5f}')
+            else:
+                print(f'{reg.name} -> {reg.value}')
         time.sleep(1)
     
     # STEP x: Finishing
