@@ -479,7 +479,7 @@ class Calibration:
 
 
 # MAIN PROGRAM START HERE
-def main()
+def main():
     logger.info('SOFTWARE INITIALIZATION')
     geny = GenyTestBench('/dev/ttyUSB1', 115200)
     meter = Calibration('/dev/ttyUSB0')
