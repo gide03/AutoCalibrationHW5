@@ -112,6 +112,7 @@ class GenyTestBench(GenySys):
         '''
         if self.mode == GenyTestBench.Mode.ENERGY_ERROR_CALIBRATION:
             currentRangeNominal = self.energyErrorCalibration.currentRange.nominal
+            print(f'Current RANGE Nominal: {currentRangeNominal}')
             if current > currentRangeNominal:
                 raise VoltageRangeError(f'Current set should not exceed {currentRangeNominal}, or you could set the current range larger')
             self.energyErrorCalibration.setCurrent(current)
@@ -166,39 +167,47 @@ class GenyTestBench(GenySys):
         
     def readBackSamplingData(self, verbose=False):
         if self.mode == GenyTestBench.Mode.ENERGY_ERROR_CALIBRATION:
-            buffer = self.energyErrorCalibration.readbackSampling()
-            result = self.serialMonitor.transaction(buffer)
-            self.response.extractDataFrame(result)
-                
-            samplingRegister = self.energyErrorCalibration.readbackSamplingRegister.extractResponseDataFrame(self.response)
+            for i in range(2):
+                try:
+                    buffer = self.energyErrorCalibration.readbackSampling()
+                    result = self.serialMonitor.transaction(buffer)
+                    self.response.extractDataFrame(result)
+                        
+                    samplingRegister = self.energyErrorCalibration.readbackSamplingRegister.extractResponseDataFrame(self.response)
+                    if verbose == True:
+                        print('================================')
+                        print('READ BACK SAMPLING')
+                        print('================================')
+                        for reg in samplingRegister:
+                            print(f'{reg.name} -> {reg.value}')
+                    return self.energyErrorCalibration.readbackSamplingRegister
+                except:
+                    continue
+            raise TimeoutError
             
-            if verbose == True:
-                print('================================')
-                print('READ BACK SAMPLING')
-                print('================================')
-                for reg in samplingRegister:
-                    print(f'{reg.name} -> {reg.value}')
-            return samplingRegister
-        
     def readBackError(self, verbose=False):
         if self.mode == GenyTestBench.Mode.ENERGY_ERROR_CALIBRATION:
             buffer = self.energyErrorCalibration.readbackErrorSampling()
-            result = self.serialMonitor.transaction(buffer)
-            self.response.extractDataFrame(result)
-            print(f'Response: {self.response.toDict()}')
-            
-            errorRegister = self.energyErrorCalibration.errorSamplingRegister.extranctResponseDataFrame(self.response)
-            
-            if verbose == True:
-                print('================================')
-                print('READ BACK ERROR')
-                print('================================')
-                for reg in errorRegister:
-                    if isinstance(reg.dtype, float):
-                        print(f'{reg.name} -> {reg.value:.5f}')
-                    else:
-                        print(f'{reg.name} -> {reg.value}')
-            return errorRegister
+            result = self.serialMonitor.transaction(buffer, timeout=20)
+            try:
+                self.response.extractDataFrame(result)
+                print(f'Response: {self.response.toDict()}')
+                
+                errorRegister = self.energyErrorCalibration.errorSamplingRegister.extranctResponseDataFrame(self.response)
+                
+                if verbose == True:
+                    print('================================')
+                    print('READ BACK ERROR')
+                    print('================================')
+                    for reg in errorRegister:
+                        if isinstance(reg.dtype, float):
+                            print(f'{reg.name} -> {reg.value:.5f}')
+                        else:
+                            print(f'{reg.name} -> {reg.value}')
+                return errorRegister
+            except:
+                pass
+        
 
 if __name__ == '__main__':
     import time

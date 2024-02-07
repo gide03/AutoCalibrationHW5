@@ -84,7 +84,7 @@ class SerialMonitor:
                 continue
             temp = self.recvBuffer
             self.recvBuffer = b''
-            print(f'[SerialMonitor] Transaction {temp}')
+            # print(f'[SerialMonitor] Transaction {temp}')
             return temp
         return b''
 
