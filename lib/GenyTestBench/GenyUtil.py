@@ -241,12 +241,12 @@ class CurrentRange:
         _100A = RangeLevel(12, 100.9)
     
     class YC99T_3C:
-        _50mA = 7
-        _200mA = 8
-        _1A = 9
-        _5A = 10
-        _16_667A = 11
-        _100A = 12
+        _50mA = RangeLevel(7, 0.050)
+        _200mA = RangeLevel(8, 0.200)
+        _1A = RangeLevel(9, 1.0)
+        _5A = RangeLevel(10, 5.0)
+        _16_667A = RangeLevel(11, 16.666)
+        _100A = RangeLevel(12, 100.0)
         
         _NOM_50mA = 0.050
         _NOM_200mA = 0.200

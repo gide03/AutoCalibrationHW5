@@ -157,7 +157,7 @@ class EnergyErrorCalibration:
         self.powerSelector = PowerSelector._3P4W_ACTIVE
         self.elementSelector = ElementSelector.EnergyErrorCalibration._COMBINE_ALL
         self.voltageRange = VoltageRange.YC99T_5C._220V
-        self.currentRange = CurrentRange.YC99T_5C._20A
+        self.currentRange = CurrentRange.YC99T_5C._100A
         self.voltage = 0.0
         self.current = 0.0
         self.powerFactor = 1
@@ -177,7 +177,7 @@ class EnergyErrorCalibration:
         self.powerSelector = PowerSelector._3P4W_ACTIVE
         self.elementSelection = ElementSelector.EnergyErrorCalibration._COMBINE_ALL
         self.voltageRange = VoltageRange.YC99T_5C._220V
-        self.currentRange = CurrentRange.YC99T_5C._20A
+        self.currentRange = CurrentRange.YC99T_5C._100A
         self.voltage = 0.0
         self.current = 0.0
         self.powerFactor = 1
@@ -307,7 +307,7 @@ class EnergyErrorCalibration:
         print(f"Power Factor Unit           : {self.powerFactorUnit}")
         print(f"Frequency                   : {self.frequency}")
         print(f"Meter Constant              : {self.meterConstant}")
-        print(f"Calibratino Measure Cycle   : {self.calibMeasurementCycle}")
+        print(f"Calibration Measure Cycle   : {self.calibMeasurementCycle}")
     
     def setTestCommandForm(self, verbose= False):
         '''

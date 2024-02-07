@@ -20,7 +20,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 # Create a logger
 logger = logging.getLogger(__name__)
-# logger.setLevel(logging.)
+logger.setLevel(logging.DEBUG)
 
 class CosemObject:
     def __init__(self, name, classId, obis):
@@ -380,7 +380,7 @@ class Calibration:
         for idx,target in enumerate(targets):
             #TODO: New Gain = (Previous Gain * Referensi Geny) / Average Instant Vrms    
             instanRegister = target[0]
-            meterMeasurement = self.fetch_register(instanRegister) - (120*idx)
+            meterMeasurement = self.fetch_register(instanRegister, numOfSample=5) - (120*idx)
             prevGain = target[1].value
             genyFeedback = target[2]
             
@@ -414,7 +414,7 @@ class Calibration:
         for target in targets:
             #TODO: New Gain = (Previous Gain * Referensi Geny) / Average Instant Vrms    
             instanRegister = target[0]
-            meterMeasurement = self.fetch_register(instanRegister)
+            meterMeasurement = self.fetch_register(instanRegister, numOfSample=5)
             prevGain = target[1].value
             genyFeedback = target[2]
             
@@ -449,10 +449,7 @@ class Calibration:
     def calibratePowerActive(self, genySamplingFeedback):
         logger.info('fetching calibration register')
         self.fetch_calibration_data()
-        
-        errorBefore = []
-        errorAfter = []
-        
+                
         targets = (
             (self.InstantActivePowerPhase1, self.calibrationRegister.GainActiveE_A, genySamplingFeedback.PowerActive_A.value),
             (self.InstantActivePowerPhase2, self.calibrationRegister.GainActiveE_B, genySamplingFeedback.PowerActive_B.value),
@@ -466,10 +463,6 @@ class Calibration:
             prevGain = target[1].value
             genyFeedback = target[2]
             
-            # calculate error before
-            currentError = ((genyFeedback - meterMeasurement) / genyFeedback) * 100
-            errorBefore.append(currentError)
-            
             # calculate new gain
             logger.info(f'Calculate new gain for {target[1].name}')
             newGain = (prevGain * genyFeedback) / meterMeasurement
@@ -480,28 +473,20 @@ class Calibration:
 
         result = self.write_calibration_data()
         logger.info(f'set calibration register. result: {result}')
-        
-        if result == 0:
-            for target in targets:
-                instanRegister = target[0]
-                meterMeasurement = self.fetch_register(instanRegister)
-                prevGain = target[1].value
-                genyFeedback = target[2]
-                
-                # calculate error before
-                currentError = ((genyFeedback - meterMeasurement) / genyFeedback) * 100
-                errorAfter.append(currentError)        
-        logger.info(f'Error Before: {errorBefore}')
-        logger.info(f'Error After : {errorAfter}')
     
-    def fetch_register(self, register):
+    def fetch_register(self, register, numOfSample=1):
         logger.info('Fetch instant register value')
         
-        value = self.ser_client.get_cosem_data(
-            class_id=register.classId,
-            obis_code=register.obis,
-            att_id=2
-        )
+        samples = []
+        for i in range(numOfSample):
+            value = self.ser_client.get_cosem_data(
+                class_id=register.classId,
+                obis_code=register.obis,
+                att_id=2
+            )
+            samples.append(value)
+        value = sum(samples)/numOfSample # measurement average
+        
         scalarUnit = self.ser_client.get_cosem_data(
             class_id=register.classId,
             obis_code=register.obis,
@@ -550,7 +535,7 @@ def main():
     # STEP 1: Configure meter setup
     # NOTE: Length of meter setup not match (101 Bytes instead of 109 Bytes). There is CRC that need to be update. Currently using hardcoded configuration from HW5+ software
     logger.info('CONFIGURE METER')
-    setupRetryAttemp = 2
+    setupRetryAttemp = 5
     for i in range(setupRetryAttemp):
         try:
             logger.info(f'Try to configure meter setup. Attemp {i+1} of {setupRetryAttemp}')
@@ -591,7 +576,9 @@ def main():
                 print(f'{reg.name} -> {reg.value}')
         time.sleep(1)
     
-    # STEP x: Finishing
+    # STEP x: 
+    # TODO 1: Error verification at 0(deg) and 75(deg) with the same current nominal
+    
     logger.info('FINISHING')
     meter.logout()
     geny.close()
