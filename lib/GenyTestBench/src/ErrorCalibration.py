@@ -123,7 +123,7 @@ class EnergyErrorCalibration:
                 temp = []
                 for i in range(register.size):
                     temp.append(data.pop(0))
-                print(f'Set register {register.name} raw data: {temp}')
+                # print(f'Set register {register.name} raw data: {temp}')
                 register.setRawValue(temp)
                 
             return self.registerList
@@ -156,8 +156,8 @@ class EnergyErrorCalibration:
     def __init__(self):        
         self.powerSelector = PowerSelector._3P4W_ACTIVE
         self.elementSelector = ElementSelector.EnergyErrorCalibration._COMBINE_ALL
-        self.voltageRange = VoltageRange.YC99T_5C._220V
-        self.currentRange = CurrentRange.YC99T_5C._100A
+        self.voltageRange = VoltageRange.YC99T_3C._220V
+        self.currentRange = CurrentRange.YC99T_3C._100A
         self.voltage = 0.0
         self.current = 0.0
         self.powerFactor = 1

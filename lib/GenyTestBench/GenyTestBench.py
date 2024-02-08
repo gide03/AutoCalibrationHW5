@@ -1,4 +1,5 @@
 import math
+from datetime import datetime, timedelta
 
 from typing import Union
 from .GenyUtil import VoltageRange, VoltageRangeError, ElementSelector, PowerSelector
@@ -185,16 +186,24 @@ class GenyTestBench(GenySys):
                     continue
             raise TimeoutError
             
-    def readBackError(self, verbose=False):
+    def readBackError(self, verbose=False, timeout=100):
+        '''
+            If test bench is not ready to send data:
+            - For type YC99T-3C each command will answered right after send the command with empty data field
+            - For type YC99T-5C each command will blocked until testbench return data stream
+        '''
         if self.mode == GenyTestBench.Mode.ENERGY_ERROR_CALIBRATION:
-            buffer = self.energyErrorCalibration.readbackErrorSampling()
-            result = self.serialMonitor.transaction(buffer, timeout=20)
-            try:
+            t0 = datetime.now()
+            tout = timedelta(seconds=timeout)
+            while datetime.now() - t0 < tout:
+                # try:
+                buffer = self.energyErrorCalibration.readbackErrorSampling()
+                result = self.serialMonitor.transaction(buffer, timeout=20)
                 self.response.extractDataFrame(result)
-                print(f'Response: {self.response.toDict()}')
+                if len(self.response.DATA) == 0:
+                    continue
                 
-                errorRegister = self.energyErrorCalibration.errorSamplingRegister.extranctResponseDataFrame(self.response)
-                
+                errorRegister = self.energyErrorCalibration.errorSamplingRegister.extranctResponseDataFrame(self.response)                
                 if verbose == True:
                     print('================================')
                     print('READ BACK ERROR')
@@ -205,8 +214,8 @@ class GenyTestBench(GenySys):
                         else:
                             print(f'{reg.name} -> {reg.value}')
                 return errorRegister
-            except:
-                pass
+                # except:
+                #     pass
         
 
 if __name__ == '__main__':

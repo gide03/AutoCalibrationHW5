@@ -153,9 +153,14 @@ class ResponseDataFrame:
         _SOI = [dFrame.pop(0) for i in range(ResponseDataFrame.SOI_BIT_LENGTH)]
         _LEN = [dFrame.pop(0) for i in range(ResponseDataFrame.DATA_FRAME_BIT_LENGTH)]
         responseLength = Util.Hex2uint(_LEN, ResponseDataFrame.DATA_FRAME_BIT_LENGTH)
-        if responseLength + ResponseDataFrame.CRC16_BIT_LENGTH + ResponseDataFrame.EOI_BIT_LENGTH == len(dFrame):
+        expectedExcessDf = (responseLength + ResponseDataFrame.CRC16_BIT_LENGTH + ResponseDataFrame.EOI_BIT_LENGTH)
+        if expectedExcessDf == len(dFrame):
             pass
         else:
+            if len(dFrame) > expectedExcessDf:              # CHECK OVERFLOW FRAME
+                for i in range(0, expectedExcessDf):
+                    dFrame.pop(0)
+                return self.extractDataFrame(bytes(dFrame))
             raise Exception(f'Invalid dataframe')
         _COMMAND = [dFrame.pop(0) for i in range(ResponseDataFrame.COMMAND_BIT_LENGTH)]
         _ERRORCODE = [dFrame.pop(0) for i in range(ResponseDataFrame.ERROR_CODE_BIT_LENGTH)]

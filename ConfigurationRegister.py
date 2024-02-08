@@ -134,11 +134,8 @@ class RegisterWrapper:
 
     def extract(self, dataFrame:Union[list,tuple,bytearray]):
         objectList = vars(self)
-        # byteSize = [objectList[register].size for register in objectList]
-        # print(byteSize)
-        # print(sum(byteSize))
-        # if len(dataFrame) != byteSize:
-            # raise Exception('dataFrame not valid')
+        if len(dataFrame) < self.byteSize():
+            raise Exception(f'data frame length not match. {len(dataFrame)} instead of {self.byteSize()}. data frame: {dataFrame}')
         
         # print('extracting dataFrame')
         for regName in objectList:
