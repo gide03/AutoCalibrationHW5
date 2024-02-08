@@ -2,6 +2,7 @@ import logging
 import serial
 import time
 import pathlib
+import os
 CURRENT_PATH = pathlib.Path(__file__).parent.absolute()
 
 from lib.GenyTestBench.GenyUtil import ElementSelector, PowerSelector, VoltageRange
@@ -16,10 +17,6 @@ GENY_SLOT_INDEX = 3         # NOTE: Posisi meter pada slot geny test bench, diti
 ERROR_ACCEPTANCE = 0.4      # NOTE: Kriteria meter sukses dikalibrasi dalam persen
 GENY_USB_PORT = 'COM1'
 METER_USB_PORT = 'COM31'
-
-
-# Configure the logging module
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(funcName)s - %(message)s')
 
 # Create a logger
 logger = logging.getLogger(__name__)
@@ -359,7 +356,7 @@ class Calibration:
         global PHASE_ANGLE_CONFIG
         
         logger.info('fetching initial calibration data')
-        self.fetch_calibration_data(verbose=True)
+        self.fetch_calibration_data()
         logger.info('update phase delay parameters to 0')
         self.calibrationRegister.PhaseDelayA.value = 0
         self.calibrationRegister.PhaseDelayB.value = 0
@@ -514,16 +511,37 @@ def main():
     global GENY_USB_PORT
     global METER_USB_PORT
     
-    logger.info('SOFTWARE INITIALIZATION')
     geny = GenyTestBench(GENY_USB_PORT, 9600)
     meter = Calibration(METER_USB_PORT)
     
+    if not os.path.exists(f'{CURRENT_PATH}/logs'):
+        os.mkdir(f'{CURRENT_PATH}/logs')
+    
     print('Please input meter ID. If empty program will terminated')
     meterId = input('Meter ID: ')
-    filename = f'{CURRENT_PATH}/logfile_{meterId}.log' 
-    logging.basicConfig(filename=filename)
+    if len(meterId) == 0:
+        exit('Calibration Canceled')
+    filename = f'{CURRENT_PATH}/logs/logfile_{meterId}.log' 
+        
+    #
+    # Logger setup    
+    #
+    file_handler = logging.FileHandler(filename)
+    file_handler.setLevel(logging.DEBUG)
+    # Create console handler with a higher log level
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.DEBUG)
+    # Create a formatter and set it for both handlers
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(funcName)s - %(message)s')
+    file_handler.setFormatter(formatter)
+    console_handler.setFormatter(formatter)
+    # Add both handlers to the logger
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+    # End of LOGGER  Configuration
     
-    # logger.info('TURNING ON METER')
+    logger.info('Initializing')
+    logger.info('Configuring test bench')
     geny.close()
     time.sleep(2)
     geny.open()
