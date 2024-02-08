@@ -1,17 +1,22 @@
 import logging
 import serial
-import sys
 import time
+import pathlib
+CURRENT_PATH = pathlib.Path(__file__).parent.absolute()
 
 from lib.GenyTestBench.GenyUtil import ElementSelector, PowerSelector, VoltageRange
-from lib.GenyTestBench.GenyTestBench import GenyTestBench, EnergyErrorCalibration
-from lib.DLMS_Client import dlmsCosemUtil
-from lib.DLMS_Client.dlms_service.dlms_service import CosemDataType, mechanism
+from lib.GenyTestBench.GenyTestBench import GenyTestBench
+from lib.DLMS_Client.dlms_service.dlms_service import mechanism
 from lib.DLMS_Client.DlmsCosemClient import DlmsCosemClient
 
 from ConfigurationRegister import Register, RegisterWrapper
 
 PHASE_ANGLE_CONFIG = 60
+GENY_SLOT_INDEX = 3         # NOTE: Posisi meter pada slot geny test bench, ditihitung dari palig kiri 1, 2, 3
+ERROR_ACCEPTANCE = 0.4      # NOTE: Kriteria meter sukses dikalibrasi dalam persen
+GENY_USB_PORT = 'COM1'
+METER_USB_PORT = 'COM31'
+
 
 # Configure the logging module
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(funcName)s - %(message)s')
@@ -477,7 +482,7 @@ class Calibration:
         result = self.write_calibration_data()
         logger.info(f'set calibration register. result: {result}')
     
-    def fetch_register(self, register, numOfSample=1):
+    def fetch_register(self, register, numOfSample=1):        
         logger.info('Fetch instant register value')
         
         samples = []
@@ -506,10 +511,17 @@ class Calibration:
 # MAIN PROGRAM START HERE
 def main():
     global PHASE_ANGLE_CONFIG    
+    global GENY_USB_PORT
+    global METER_USB_PORT
     
     logger.info('SOFTWARE INITIALIZATION')
-    geny = GenyTestBench('com1', 9600)
-    meter = Calibration('com31')
+    geny = GenyTestBench(GENY_USB_PORT, 9600)
+    meter = Calibration(METER_USB_PORT)
+    
+    print('Please input meter ID. If empty program will terminated')
+    meterId = input('Meter ID: ')
+    filename = f'{CURRENT_PATH}/logfile_{meterId}.log' 
+    logging.basicConfig(filename=filename)
     
     # logger.info('TURNING ON METER')
     geny.close()
@@ -564,11 +576,12 @@ def main():
         logger.debug('Reading errors from test bench')
         
         errors = geny.readBackError()
-        for reg in errors:
-            if isinstance(reg.dtype, float):
-                logger.debug(f'{reg.name} -> {reg.value:.5f}')
-            else:
-                logger.debug(f'{reg.name} -> {reg.value}')
+        for idx,reg in enumerate(errors):
+            if idx == GENY_SLOT_INDEX:
+                if isinstance(reg.dtype, float):    
+                    logger.debug(f'{reg.name} -> {reg.value:.5f} {"PASSED" if reg.value < ERROR_ACCEPTANCE else "FAILED"}')
+                else:
+                    logger.debug(f'{reg.name} -> {reg.value}')
         time.sleep(1)
         
     # STEP 5: Verify error at power factor 1
@@ -580,21 +593,22 @@ def main():
     for i in range(3):
         logger.debug('Reading errors from test bench')
         
-        errors = geny.readBackError()
-        for reg in errors:
-            if isinstance(reg.dtype, float):
-                logger.debug(f'{reg.name} -> {reg.value:.5f}')
-            else:
-                logger.debug(f'{reg.name} -> {reg.value}')
+        for idx,reg in enumerate(errors):
+            if idx == GENY_SLOT_INDEX:
+                if isinstance(reg.dtype, float):    
+                    logger.debug(f'{reg.name} -> {reg.value:.5f} {"PASSED" if reg.value < ERROR_ACCEPTANCE else "FAILED"}')
+                else:
+                    logger.debug(f'{reg.name} -> {reg.value}')
         time.sleep(1)
 
     # STEP x: 
     # TODO 1: Error verification a
     logger.info('FINISHING')
-    logger.debug('Logout from metre')
+    logger.debug('Logout from meter')
     meter.logout()
     logger.debug('Turn off meter')
     geny.close()
     
 if __name__ == '__main__':
     main()
+    input('Calibration finish. Press enter to continue')
