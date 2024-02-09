@@ -5,6 +5,7 @@ import serial
 import pathlib
 import sys
 import time
+import threading
 
 CURRENT_PATH = pathlib.Path(__file__).parent.absolute()
 
@@ -95,14 +96,10 @@ class FrequencyCounterInstrument:
         #         return response
         #     except:
         #         pass
-        self.selectedInstrument.write(":MEASure:FREQuency?\n")
+        self.selectedInstrument.write(":MEASure:FREQuency:BURSt?\n")
         response = self.selectedInstrument.read()
-        print(type(response))
-        print(float(response[:-1]))
-            
-            
-        # instrument.close()
-        
+        # print(type(response))
+        return float(response[:-1])
 class commSetting:
     METER_ADDR = 100
     CLIENT_NUMBER = 0x73
@@ -196,14 +193,73 @@ class CalibrationRegister(RegisterWrapper):
         self.tf_coeff_b2 = Register('tf_coeff_b2', 'int32')
         self.tf_coeff_b3 = Register('tf_coeff_b3', 'int32')
 
-def fetch_calibration_data(verbose = False):
-    logger.info('read calibration data')
-    data_read = ser_client.get_cosem_data(1, "0;128;96;14;80;255", 2)  
-    calibrationRegister.extract(data_read)
-    if verbose == True:
-        calibrationRegister.info()
+class MeterSetup(RegisterWrapper):
+    def __init__(self):
+        self.CalibratiOndateTime = Register("CalibratiOndateTime", "uint32")
+        self.MeterForm = Register("MeterForm", "uint8")
+        self.MeterClass = Register("MeterClass", "uint8")
+        self.FrequencySelection = Register("FrequencySelection", "uint8")
+        self.MeterType = Register("MeterType", "uint8")
+        self.MeterVoltageType = Register("MeterVoltageType", "uint8")
+        self.MeterPowerSupplyType = Register("MeterPowerSupplyType", "uint8")
+        self.ServicesenseMode = Register("ServicesenseMode", "uint8")
+        self.VACalculatiOnConfig = Register("VACalculatiOnConfig", "uint8")
+        self.WattCalculatiOnConfig = Register("WattCalculatiOnConfig", "uint8")
+        self.VARCalculatiOnConfig = Register("VARCalculatiOnConfig", "uint8")
+        self.LED1PulseWeight = Register("LED1PulseWeight", "uint16")
+        self.LED1PulseOnTime = Register("LED1PulseOnTime", "uint16")
+        self.LED1PulseOffTime = Register("LED1PulseOffTime", "uint16")
+        self.LED1DebugData = Register("LED1DebugData", "uint32")
+        self.LED1Phase = Register("LED1Phase", "uint8")
+        self.LED1Direction = Register("LED1Direction", "uint8")
+        self.LED1Energy = Register("LED1Energy", "uint8")
+        self.LED1CreepEvent = Register("LED1CreepEvent", "uint8")
+        self.LED2PulseWeight = Register("LED2PulseWeight", "uint16")
+        self.LED2PulseOnTime = Register("LED2PulseOnTime", "uint16")
+        self.LED2PulseOffTime = Register("LED2PulseOffTime", "uint16")
+        self.LED2DebugData = Register("LED2DebugData", "uint32")
+        self.LED2Phase = Register("LED2Phase", "uint8")
+        self.LED2Direction = Register("LED2Direction", "uint8")
+        self.LED2Energy = Register("LED2Energy", "uint8")
+        self.LED2CreepEvent = Register("LED2CreepEvent", "uint8")
+        self.AnticreepConstant = Register("AnticreepConstant", "uint16")
+        self.AnticreepVoltage = Register("AnticreepVoltage", "uint16")
+        self.AnticreepTimer = Register("AnticreepTimer", "uint32")
+        self.ArcDetectiOnCounter = Register("ArcDetectiOnCounter", "uint8")
+        self.MagneticSensorXaxis = Register("MagneticSensorXaxis", "int16")
+        self.MagneticSensorYaxis = Register("MagneticSensorYaxis", "int16")
+        self.MagneticSensorZaxis = Register("MagneticSensorZaxis", "int16")
+        self.MagneticSensorNegXaxis = Register("MagneticSensorNegXaxis", "int16")
+        self.MagneticSensorNegYaxis = Register("MagneticSensorNegYaxis", "int16")
+        self.MagneticSensorNegZaxis = Register("MagneticSensorNegZaxis", "int16")
+        self.AccelerometerXaxis = Register("AccelerometerXaxis", "int16")
+        self.AccelerometerYaxis = Register("AccelerometerYaxis", "int16")
+        self.AccelerometerZaxis = Register("AccelerometerZaxis", "int16")
+        self.AccelerometerNegXaxis = Register("AccelerometerNegXaxis", "int16")
+        self.AccelerometerNegYaxis = Register("AccelerometerNegYaxis", "int16")
+        self.AccelerometerNegZaxis = Register("AccelerometerNegZaxis", "int16")
+        self.RTCCalibration = Register("RTCCalibration", "int16")
+        self.RTCTempCoeff = Register("RTCTempCoeff", "int16")
+        self.OpticalUartBaudrate = Register("OpticalUartBaudrate", "uint8")
+        self.DIUartBaudrate = Register("DIUartBaudrate", "uint8")
+        self.NICUartBaudrate = Register("NICUartBaudrate", "uint8")
+        self.ADCchannelNum = Register("ADCchannelNum", "uint8")
+        self.VaADCChannelMapping = Register("VaADCChannelMapping", "uint8")
+        self.IaADCChannelMapping = Register("IaADCChannelMapping", "uint8")
+        self.VbADCChannelMapping = Register("VbADCChannelMapping", "uint8")
+        self.IbADCChannelMapping = Register("IbADCChannelMapping", "uint8")
+        self.VcADCChannelMapping = Register("VcADCChannelMapping", "uint8")
+        self.IcADCChannelMapping = Register("IcADCChannelMapping", "uint8")
+        self.VauxADCChannelMapping = Register("VauxADCChannelMapping", "uint8")
+        self.IneutralADCChannelMapping = Register("IneutralADCChannelMapping", "uint8")
+        self.Reserved0 = Register("Reserved0", "uint32")
+        self.Reserved1 = Register("Reserved1", "uint32")
+        self.Reserved2 = Register("Reserved2", "uint16")
+        self.CRC = Register("CRC", 'uint16')
+        self.Reserved3 = Register("Reserved3", "uint16")
+        self.Reserved3 = Register("Reserved4", "uint32")
 
-calibrationRegister = CalibrationRegister()
+meterSetupRegister = MeterSetup()
 instrument = FrequencyCounterInstrument()
 ser_client = DlmsCosemClient(
     port=METER_USB_PORT,
@@ -218,6 +274,7 @@ ser_client = DlmsCosemClient(
     client_nb=commSetting.CLIENT_NUMBER,
 )
 
+
 ser_client.client_logout()
 if ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL):
     logger.info('Reading fw version')
@@ -226,29 +283,87 @@ if ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL):
     logger.info(f'Firmware Version: {bytes(fwVersion).decode("utf-8")}')
     
     logger.info('Fetching calibration register')
-    calibrationData = ser_client.get_cosem_data(1, "0;128;96;14;80;255", 2)  
-    calibrationRegister.extract(calibrationData)
+    result = ser_client.get_cosem_data(1, "0;128;96;14;80;255", 2)
     
-    rtcCommand = [1, 180, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-    result = ser_client.set_cosem_data(1, '0;128;96;14;82;255', 2, 9, rtcCommand)
-    logger.info(f'Transmit RTC -- {result}')
-    logger.debug(f'Meter shall be show 4Hz signal')
     
-    for i in range(20):
-        try:
-            value = instrument.read()
-            print(value)
-        except:
-            pass
+    logger.info('Fetching meter setup register')
+    result = ser_client.get_cosem_data(1, "0;128;96;14;81;255", 2)
+    meterSetupRegister.extract(result)
+    # df = meterSetupRegister.dataFrame()
+    # print(f'meter setup read: {df}')
+    # print('send the same data')
+    # result = ser_client.set_cosem_data(1, "0;128;96;14;81;255", 2, 9, df)
+    # print(f'result: {result}')
+    # print('Change CRC to 0')
+    # meterSetupRegister.CRC.value = 0
+    # df = meterSetupRegister.dataFrame()
+    # print(f'meter setup will be send: {df}')
+    # result = ser_client.set_cosem_data(1, "0;128;96;14;81;255", 2, 9, df)
+    # print(f'result: {result}')
+    
+    # print('check is the value is changed')
+    # result = ser_client.get_cosem_data(1, "0;128;96;14;81;255", 2)  
+    # meterSetupRegister.extract(result)
+    # print(meterSetupRegister.dataFrame())
     
     ser_client.client_logout()
-# except:
-#     pass
-# TODO 1: Login dlms
+    exit()
+    
+    # meterSetupRegister.info()
+    
+    # ser_client.client_logout()
+    # exit()
+    
+    
+    rtcCommand = [1, 180, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    measuredFreqValue = []
+    for i in range(0, 100):
+        result = ser_client.set_cosem_data(1, '0;128;96;14;82;255', 2, 9, rtcCommand)
+        # logger.info(f'Transmit RTC -- {result}')
+        try:
+            if (i+1) % 8 == 0:
+                print('Reading instrument')
+                temp = instrument.read()
+                print(temp)
+                # measuredFreqValue = instrument.read()
+                if 3 < temp < 6:
+                    print(f'Freq: {temp}')
+                    measuredFreqValue.append(temp)
+                    if len(measuredFreqValue) == 2:
+                        break
+        except:
+            pass
+        time.sleep(0.2)
+        # logger.debug(f'Meter shall be show 4Hz signal')
 
-# TODO 2: Setup DATA ini 01 b4 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ke object ?Tanya vian
-# TODO 3: Read instrument data
-# TODO 4: Read initial calibration regiter
-# TODO 5: Calculate new gain
-# TODO 6: Send gain and verify
-# TODO 7: Logout dlms
+    print(f'Frequency: {measuredFreqValue}')
+    measuredFreqValue = sum(measuredFreqValue)/len(measuredFreqValue)
+    print(f'Average: {measuredFreqValue}')
+    
+    RtcCalibrationValue = ( (measuredFreqValue-4)/(4*10**6) ) / 0.954
+    RtcCalibrationValue = int(RtcCalibrationValue)
+    print(f'Set rtc calibration to: {RtcCalibrationValue}')
+    meterSetupRegister.RTCCalibration.value = RtcCalibrationValue
+    meterSetupRegister.info()
+    meterSetupRegister.CRC = 0
+    
+    df = meterSetupRegister.dataFrame()
+    retryAttemp = 3
+    for i in range(retryAttemp):
+        try:
+            print(f'Set register to meter setup result. Atemp {i+1} of {retryAttemp}')
+            result = calibrationData = ser_client.set_cosem_data(1, "0;128;96;14;81;255", 2, 9, df)
+            print(f'Result: {result}')
+        except:
+            if i<retryAttemp-1:
+                print('Timeout. Retry')
+                ser_client.client_logout()
+                ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL)
+            pass
+        
+    logger.info('Fetching meter setup register')
+    result = ser_client.get_cosem_data(1, "0;128;96;14;81;255", 2)  
+    meterSetupRegister.extract(result)
+    meterSetupRegister.info()
+    
+    ser_client.client_logout()
