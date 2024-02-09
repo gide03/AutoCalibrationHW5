@@ -521,7 +521,7 @@ def main():
     meterId = input('Meter ID: ')
     if len(meterId) == 0:
         exit('Calibration Canceled')
-    filename = f'{CURRENT_PATH}/logs/logfile_{meterId}.log' 
+    filename = f'{CURRENT_PATH}/logs/{meterId} calibration.log' 
         
     #
     # Logger setup    
