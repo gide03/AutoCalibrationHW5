@@ -77,9 +77,7 @@ try:
         value = 1
         result = ser_client.set_cosem_data(classId, obis, attId, CosemDataType.e_UNSIGNED, value)
 
-        print('wait 2 seconds')
-        import time
-        time.sleep(2)
+        input('Meter will restart. when the meter turn off, toggle power source!!. (Press ENTER if meter has been entered HVT mode)')
 except:
     pass
 
