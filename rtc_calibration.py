@@ -58,15 +58,17 @@ class FrequencyCounterInstrument:
     
     def __init__(self):
         self.rm = visa.ResourceManager()
-        print('searching instrument')
+        logger.debug('searching instrument')
         self.instrument_list = self.rm.list_resources()
-        print(f'instrument list: {self.instrument_list}')
+        logger.debug(f'instrument list: {self.instrument_list}')
         
         self.selectedInstrument = ''
         for instrument in self.instrument_list:
             if 'USB' in instrument:
                 self.selectedInstrument = self.rm.open_resource(instrument)
                 break
+        if self.selectedInstrument == '':
+            raise Exception('No instrument detected. Please check the connection')
         # instrument_info = rm.resource_info('USB0::0x14EB::0x0090::389645::INSTR')
         # self.instrument = self.rm.open_resource('USB0::0x14EB::0x0090::389645::INSTR')
         # print(instrument_info)
@@ -308,12 +310,11 @@ if ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL):
         # logger.info(f'Transmit RTC -- {result}')
         try:
             if (i+1) % 8 == 0:
-                print('Reading instrument')
+                logger.debug('Reading instrument')
                 temp = instrument.read()
-                print(temp)
                 # measuredFreqValue = instrument.read()
-                if 3 < temp < 6:
-                    print(f'Freq: {temp}')
+                if 3 < temp < 6: # NOTE: because the frequency in this range
+                    logger.debug(f'Freq measurement: {temp}')
                     measuredFreqValue.append(temp)
                     if len(measuredFreqValue) == 2:
                         break
@@ -322,16 +323,16 @@ if ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL):
         time.sleep(0.2)
         # logger.debug(f'Meter shall be show 4Hz signal')
 
-    print(f'Frequency: {measuredFreqValue}')
     measuredFreqValue = sum(measuredFreqValue)/len(measuredFreqValue)
-    print(f'Average: {measuredFreqValue}')
+    logger.info(f'Frequency measurement average: {measuredFreqValue}')
     
     RtcCalibrationValue = ( (measuredFreqValue-4)/(4*10**6) ) / 0.954
     RtcCalibrationValue = int(RtcCalibrationValue)
-    print(f'Set rtc calibration to: {RtcCalibrationValue}')
+    logger.info(f'Set rtc calibration to: {RtcCalibrationValue}')
     meterSetupRegister.RTCCalibration.value = RtcCalibrationValue
     
     # CALCULATE NEW CRC from new configuration
+    logger.info('Calculating new CRC')
     configurationData = calibrationRegister.dataFrame()
     configurationData.extend(meterSetupRegister.dataFrame())
     for i in range(8): #Pop CRC, Reserved3, Reserved4. Those registers are not count for CRC
@@ -343,17 +344,20 @@ if ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL):
     retryAttemp = 3
     for i in range(retryAttemp):
         try:
-            print(f'Set register to meter setup result. Atemp {i+1} of {retryAttemp}')
+            logger.info(f'Set register to meter setup result. Atemp {i+1} of {retryAttemp}')
             result = ser_client.set_cosem_data(1, "0;128;96;14;81;255", 2, 9, df)
-            print(f'Result: {result}')
+            logger.debug(f'Result: {result}')
         except:
             if i<retryAttemp-1:
-                print('Timeout. Retry')
+                logger.debug('Timeout. Retry process')
                 ser_client.client_logout()
                 ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL)
                 meterRegister = ser_client.get_cosem_data(1, "0;128;96;14;81;255", 2)
                 if meterRegister == df:
-                    print('Meter configuration is already saved by the meter')
+                    logger.debug('Meter configuration is already saved by the meter')
                     break
             pass
     ser_client.client_logout()
+
+    logger.info('RTC Calibration is completed')
+    input('Press ENTER to Exit')
