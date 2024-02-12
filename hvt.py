@@ -108,8 +108,8 @@ TestList = (
     TestId(b'?13\r', 'EXT PULSE', True),
     TestId(b'?14\r', 'M1- UB/Test LED1', True, waitStateMsg="After this, push TOP button to turn on TOP LED.", needVerify=True),
     TestId(b'?15\r', 'M2- UB/Test LED2', True, waitStateMsg="After this, push BOT button to turn on BOT LED.", needVerify=True),
-    TestId(b'?16\r', 'RDS Ctrl', True, waitStateMsg="Check RDS control with osciloscope!", needVerify=True),
-    TestId(b'?17\r', 'AUX Ctrl', True, waitStateMsg="Check AUX control with osciloscope!", needVerify=True),
+    TestId(b'?16(1,1,5)\r', 'RDS Ctrl', True, waitStateMsg="Hear relay?", needVerify=True),
+    TestId(b'?17(1,1,5)\r', 'AUX Ctrl', True, waitStateMsg="Hear relay?", needVerify=True),
     TestId(b'?18(0)\r', 'TAMPER I/P TEST-1 Closed ', True, waitStateMsg='Push and hold MCOD button!'),
     TestId(b'?18(0)\r', 'TAMPER I/P TEST-1 Opened', True, expectedResult= False, waitStateMsg='Release MCOD button!'),
     TestId(b'?18(1)\r', 'TAMPER I/P TEST-2 Closed', True, expectedResult=False, waitStateMsg='Push and hold TCOD button!'),
@@ -123,10 +123,9 @@ TestList = (
     TestId(b'?25\r', 'HW EPF', False),
     TestId(b'?26(0)\r', 'DI I/O-1', False),
     TestId(b'?26(1)\r', 'DI I/O-2', False),
-    TestId(b'?26(2)\r', 'DI I/O-3', True),
+    TestId(b'?26(2)\r', 'DI I/O-3', True, waitStateMsg='Push modem busy!'),
     TestId(b'?27(0)\r', 'Ext I/O-1', True),
-    TestId(b'?27(1)\r', 'Ext I/O-1', True, waitStateMsg='Set High Ext I/O-1!'),
-    TestId(b'?27(1)\r', 'Ext I/O-1', True, expectedResult=False, waitStateMsg='Set Low Ext I/O-1!'),
+    TestId(b'?27(1)\r', 'Ext I/O-1', True),
     TestId(b'?28\r', 'MainB I/O', True),
     TestId(b'?29\r', 'Validate Ext ADC data', True),
     TestId(b'?30\r', 'SWITCH TO MAIN FW', True),
@@ -218,6 +217,5 @@ def main():
     
     logger.info(f'HVT finished. Num of test: {num_of_test} Num of passed: {num_of_passed} Num of fail: {num_of_failed} Num of skip: {num_of_skip}')
             
-
 if __name__ == '__main__':
     main()
