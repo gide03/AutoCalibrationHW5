@@ -103,9 +103,9 @@ class Calibration:
             self.Reserved0 = Register("Reserved0", "uint32")
             self.Reserved1 = Register("Reserved1", "uint32")
             self.Reserved2 = Register("Reserved2", "uint16")
-            self.Calibration = Register("CRC", 'uint16')
+            self.CRC = Register("CRC", 'uint16')
             self.Reserved3 = Register("Reserved3", "uint16")
-            self.Reserved3 = Register("Reserved4", "uint32")
+            self.Reserved4 = Register("Reserved4", "uint32")
 
     class CalibrationRegister(RegisterWrapper):
         def __init__(self):
@@ -245,8 +245,7 @@ class Calibration:
             except Exception as e:
                 logger.warning(f'Failed to login, error message: {str(e)}')
             if loginResult == False:
-                logger.critical(f'Could not connect to meter')
-                
+                logger.critical(f'Could not connect to meter')        
     
     def logout(self):
         logger.info('Logout from meter')
@@ -290,7 +289,7 @@ class Calibration:
                 
         logger.critical(f'TIMEOUT!!. Turn off test bench')
         raise TimeoutError
-    
+        
     def fetch_meter_setup(self, verbose=False) -> list:
         '''
             returns
@@ -308,9 +307,26 @@ class Calibration:
         return data_read
     
     def configure_meter_setup(self):
+        def calRunningCRC16(dataFrame):
+            lCrc = 0xffff
+            
+            for dataIdx in range(0, len(dataFrame)):
+                data = dataFrame[dataIdx]
+                lCrc = lCrc ^ (data << 8)
+                for i in range(0,8):
+                    if (lCrc & 0x8000):
+                        lCrc = (lCrc << 1) ^ 0x1021
+                    else:
+                        lCrc <<= 1
+                lCrc &= 0xffff
+            # return [lCrc&0xff, lCrc>>8]
+            return lCrc
+        
+        logger.info('Fetch calibration data')
+        self.fetch_calibration_data()        
+        logger.info('Fetch meter setup')
         excessData = self.fetch_meter_setup()
         self.meterSetupRegister.CalibratiOndateTime.value = int(time.time())
-        logger.info(f'Set time epoch: {self.meterSetupRegister.CalibratiOndateTime.value} second')
         self.meterSetupRegister.MeterForm.value = 133
         self.meterSetupRegister.MeterClass.value = 5
         self.meterSetupRegister.FrequencySelection.value = 0
@@ -318,12 +334,20 @@ class Calibration:
         self.meterSetupRegister.MeterVoltageType.value = 0
         self.meterSetupRegister.MeterPowerSupplyType.value = 0
         self.meterSetupRegister.ServicesenseMode.value = 0
+        
+        # Calculate new data frame
+        configurationData = self.calibrationRegister.dataFrame()
+        configurationData.extend(self.meterSetupRegister.dataFrame())
+        for i in range(8): #Pop CRC, Reserved3, Reserved4. Those registers are not count for CRC
+            configurationData.pop(-1)
+        newCRC = calRunningCRC16(configurationData)
+        self.meterSetupRegister.CRC.value = newCRC
                 
         retry = 5
         logger.info('Constructing data frame')
         meterSetupBuffer = self.meterSetupRegister.dataFrame()
-        logger.warning('Data is currently hardcoded for all meter because of unknown CRC calculation')
-        meterSetupBuffer = [0xF7,0x63,0x56,0x2D,0x85,0x05,0x00,0x01,0x00,0x01,0x00,0x01,0x02,0x03,0x0A,0x00,0x00,0x2D,0x00,0x2D,0x00,0x00,0x00,0x00,0x04,0x03,0x01,0x01,0x0A,0x00,0x00,0x2D,0x00,0x2D,0x00,0x00,0x00,0x00,0x04,0x03,0x02,0x01,0x19,0x03,0x78,0x05,0x00,0x40,0x7E,0x05,0x14,0x60,0x02,0x20,0x0B,0x08,0x08,0x60,0x07,0xE0,0x04,0x90,0x1C,0x0A,0x00,0x0A,0x00,0x0A,0x00,0xF6,0xFF,0xF6,0xFF,0xF6,0xFF,0x00,0x00,0xA3,0x01,0x00,0x00,0x00,0x08,0x02,0x05,0x01,0x04,0x00,0x06,0x03,0x08,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x45,0x96,0x00,0xFD,0x00,0x00,0x00,0x05]
+        # logger.warning('Data is currently hardcoded for all meter because of unknown CRC calculation')
+        # meterSetupBuffer = [0xF7,0x63,0x56,0x2D,0x85,0x05,0x00,0x01,0x00,0x01,0x00,0x01,0x02,0x03,0x0A,0x00,0x00,0x2D,0x00,0x2D,0x00,0x00,0x00,0x00,0x04,0x03,0x01,0x01,0x0A,0x00,0x00,0x2D,0x00,0x2D,0x00,0x00,0x00,0x00,0x04,0x03,0x02,0x01,0x19,0x03,0x78,0x05,0x00,0x40,0x7E,0x05,0x14,0x60,0x02,0x20,0x0B,0x08,0x08,0x60,0x07,0xE0,0x04,0x90,0x1C,0x0A,0x00,0x0A,0x00,0x0A,0x00,0xF6,0xFF,0xF6,0xFF,0xF6,0xFF,0x00,0x00,0xA3,0x01,0x00,0x00,0x00,0x08,0x02,0x05,0x01,0x04,0x00,0x06,0x03,0x08,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x45,0x96,0x00,0xFD,0x00,0x00,0x00,0x05]
         # NOTE: Different byte size and unknown CRC calculation type
         for i in range(retry):
             try:
