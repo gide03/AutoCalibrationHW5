@@ -3,13 +3,10 @@ import os
 import logging
 import serial
 import pathlib
-import sys
 import time
-import threading
 
 CURRENT_PATH = pathlib.Path(__file__).parent.absolute()
 
-from datetime import datetime, timedelta
 from lib.DLMS_Client.dlms_service.dlms_service import CosemDataType, mechanism
 from lib.DLMS_Client.DlmsCosemClient import DlmsCosemClient, TransportSec
 
@@ -257,8 +254,9 @@ class MeterSetup(RegisterWrapper):
         self.Reserved2 = Register("Reserved2", "uint16")
         self.CRC = Register("CRC", 'uint16')
         self.Reserved3 = Register("Reserved3", "uint16")
-        self.Reserved3 = Register("Reserved4", "uint32")
+        self.Reserved4 = Register("Reserved4", "uint32")
 
+calibrationRegister = CalibrationRegister()
 meterSetupRegister = MeterSetup()
 instrument = FrequencyCounterInstrument()
 ser_client = DlmsCosemClient(
@@ -274,6 +272,19 @@ ser_client = DlmsCosemClient(
     client_nb=commSetting.CLIENT_NUMBER,
 )
 
+def calRunningCRC16(dataFrame):
+    lCrc = 0xffff
+    
+    for dataIdx in range(0, len(dataFrame)):
+        data = dataFrame[dataIdx]
+        lCrc = lCrc ^ (data << 8)
+        for i in range(0,8):
+            if (lCrc & 0x8000):
+                lCrc = (lCrc << 1) ^ 0x1021
+            else:
+                lCrc <<= 1
+        lCrc &= 0xffff
+    return lCrc
 
 ser_client.client_logout()
 if ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL):
@@ -284,37 +295,12 @@ if ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL):
     
     logger.info('Fetching calibration register')
     result = ser_client.get_cosem_data(1, "0;128;96;14;80;255", 2)
-    
+    calibrationRegister.extract(result)
     
     logger.info('Fetching meter setup register')
     result = ser_client.get_cosem_data(1, "0;128;96;14;81;255", 2)
     meterSetupRegister.extract(result)
-    # df = meterSetupRegister.dataFrame()
-    # print(f'meter setup read: {df}')
-    # print('send the same data')
-    # result = ser_client.set_cosem_data(1, "0;128;96;14;81;255", 2, 9, df)
-    # print(f'result: {result}')
-    # print('Change CRC to 0')
-    # meterSetupRegister.CRC.value = 0
-    # df = meterSetupRegister.dataFrame()
-    # print(f'meter setup will be send: {df}')
-    # result = ser_client.set_cosem_data(1, "0;128;96;14;81;255", 2, 9, df)
-    # print(f'result: {result}')
-    
-    # print('check is the value is changed')
-    # result = ser_client.get_cosem_data(1, "0;128;96;14;81;255", 2)  
-    # meterSetupRegister.extract(result)
-    # print(meterSetupRegister.dataFrame())
-    
-    ser_client.client_logout()
-    exit()
-    
-    # meterSetupRegister.info()
-    
-    # ser_client.client_logout()
-    # exit()
-    
-    
+   
     rtcCommand = [1, 180, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
     measuredFreqValue = []
     for i in range(0, 100):
@@ -344,26 +330,30 @@ if ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL):
     RtcCalibrationValue = int(RtcCalibrationValue)
     print(f'Set rtc calibration to: {RtcCalibrationValue}')
     meterSetupRegister.RTCCalibration.value = RtcCalibrationValue
-    meterSetupRegister.info()
-    meterSetupRegister.CRC = 0
+    
+    # CALCULATE NEW CRC from new configuration
+    configurationData = calibrationRegister.dataFrame()
+    configurationData.extend(meterSetupRegister.dataFrame())
+    for i in range(8): #Pop CRC, Reserved3, Reserved4. Those registers are not count for CRC
+        configurationData.pop(-1)
+    newCRC = calRunningCRC16(configurationData)
+    meterSetupRegister.CRC.value = newCRC 
     
     df = meterSetupRegister.dataFrame()
     retryAttemp = 3
     for i in range(retryAttemp):
         try:
             print(f'Set register to meter setup result. Atemp {i+1} of {retryAttemp}')
-            result = calibrationData = ser_client.set_cosem_data(1, "0;128;96;14;81;255", 2, 9, df)
+            result = ser_client.set_cosem_data(1, "0;128;96;14;81;255", 2, 9, df)
             print(f'Result: {result}')
         except:
             if i<retryAttemp-1:
                 print('Timeout. Retry')
                 ser_client.client_logout()
                 ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL)
+                meterRegister = ser_client.get_cosem_data(1, "0;128;96;14;81;255", 2)
+                if meterRegister == df:
+                    print('Meter configuration is already saved by the meter')
+                    break
             pass
-        
-    logger.info('Fetching meter setup register')
-    result = ser_client.get_cosem_data(1, "0;128;96;14;81;255", 2)  
-    meterSetupRegister.extract(result)
-    meterSetupRegister.info()
-    
     ser_client.client_logout()
