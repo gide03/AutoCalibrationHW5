@@ -159,38 +159,46 @@ def main():
                 # input('Press Enter to continue')
                 pass
             
-            result = transaction(test.id, 120)
-            logger.debug(f'Transaction Tx: {test.id.hex()} Rx: {result.hex()}')
-            try:
-                result = result.decode('utf-8').replace('\n', '')
-                result = result.replace('\r', '')
-                
-                if test.needVerify: # Manual verification
-                    sys.stdin.flush()
-                    userVerification = input('Is it Okay? (y/n. Default y)')
-                    if userVerification == 'n':
-                        result = 'Fail'
-                    else:
-                        result = 'Pass'
-                else:
-                    logger.debug(f'Result -> {result}')
+            retryAttemp = 2
+            for i in range(retryAttemp):
+                result = transaction(test.id, 5)
+                logger.debug(f'Transaction Tx: {test.id.hex()} Rx: {result.hex()}')
+                try:
+                    result = result.decode('utf-8').replace('\n', '')
+                    result = result.replace('\r', '')
                     
-                if 'Pass' in result:
-                    if test.expectedResult == True:
-                        test.isPassed = True
-                        logger.info(f'PASSED')
+                    if test.needVerify: # Manual verification
+                        sys.stdin.flush()
+                        userVerification = input('Is it Okay? (y/n. Default y)')
+                        if userVerification == 'n':
+                            result = 'Fail'
+                        else:
+                            result = 'Pass'
                     else:
-                        logger.warning(f'FAILED')
-                elif 'Fail' in result:
-                    if test.expectedResult == False:
-                        test.isPassed = True
-                        logger.info(f'PASSED')
+                        logger.debug(f'Result -> {result}')
+                        
+                    if 'Pass' in result:
+                        if test.expectedResult == True:
+                            test.isPassed = True
+                            logger.info(f'PASSED')
+                        else:
+                            logger.warning(f'FAILED')
+                    elif 'Fail' in result:
+                        if test.expectedResult == False:
+                            test.isPassed = True
+                            logger.info(f'PASSED')
+                        else:
+                            logger.warning(f'FAILED')
+                    elif 'ERROR' in result:
+                        raise Exception('')
+                    break
+                except Exception as e:
+                    logger.warning(e)
+                    if i < retryAttemp-1:
+                        logger.debug('Retry transaction')
                     else:
-                        logger.warning(f'FAILED')
-            except Exception as e:
-                logger.warning(e)
-                logger.critical('Transaction FAILED. Please retry the test script')
-                exit(1)
+                        logger.critical('Transaction FAILED. Please retry the test script')
+                        exit(1)
         else:
             logger.info(f'Skip Testing {test.desc}')
 
@@ -200,8 +208,12 @@ def main():
     num_of_skip = 0
     num_of_passed = 0
     num_of_failed = 0
-    with open(f'{CURRENT_PATH}/logs/{meterId} hvt report.csv', 'w') as f:
-        print('Test Description, Result', file=f)
+    if not os.path.exists(f'{CURRENT_PATH}/logs/hvt report.csv'):
+        with open(f'{CURRENT_PATH}/logs/hvt report.csv', 'w') as f:
+            f.write(f'meter id;{";".join([test.desc for test in TestList])}\n')
+        
+    with open(f'{CURRENT_PATH}/logs/hvt report.csv', 'a') as f:
+        testResult = []
         for test in TestList:
             num_of_test += 1
             status = 'FAILED'
@@ -213,7 +225,11 @@ def main():
                 status = 'PASSED'
             elif test.isPassed == False:
                 num_of_failed += 1
-            print(f'{test.desc}, {status}', file=f)
+            
+            testResult.append(status)
+        report = f'{meterId};'
+        report += ';'.join(testResult)
+        print(report, file=f)
     
     logger.info(f'HVT finished. Num of test: {num_of_test} Num of passed: {num_of_passed} Num of fail: {num_of_failed} Num of skip: {num_of_skip}')
             
