@@ -143,6 +143,7 @@ class RegisterWrapper:
             registerSize = register.size
             raw_value = [dataFrame.pop(0) for i in range(registerSize)]
             register.setValueFromDf(raw_value)
+        return dataFrame
         
     def dataFrame(self):
         objectList = vars(self)
