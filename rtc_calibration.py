@@ -72,7 +72,7 @@ class FrequencyCounterInstrument:
         # instrument_info = rm.resource_info('USB0::0x14EB::0x0090::389645::INSTR')
         # self.instrument = self.rm.open_resource('USB0::0x14EB::0x0090::389645::INSTR')
         # print(instrument_info)
-        self.sendInit()
+        # self.sendInit()
     
     def sendInit(self):
         for data in self.INIT_COMMAND:
@@ -259,6 +259,7 @@ class MeterSetup(RegisterWrapper):
         self.Reserved3 = Register('Reserved3', 'uint16')
         self.CRC = Register('CRC', 'uint16')
 
+instrument = FrequencyCounterInstrument()
 calibrationRegister = CalibrationRegister()
 meterSetupRegister = MeterSetup()
 ser_client = DlmsCosemClient(
@@ -302,15 +303,62 @@ if ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL):
     logger.info('Fetching meter setup register')
     result = ser_client.get_cosem_data(1, "0;128;96;14;81;255", 2)
     meterSetupRegister.extract(result)
-   
+    
+    # SET RTC CALIBRATION TO DEFAULT
+    meterSetupRegister.RTCCalibration.value = 0
+    configurationData = calibrationRegister.dataFrame()
+    configurationData.extend(meterSetupRegister.dataFrame())
+    for i in range(2): #Pop CRC
+        configurationData.pop(-1)
+    newCRC = calRunningCRC16(configurationData)
+    meterSetupRegister.CRC.value = newCRC
+    df = meterSetupRegister.dataFrame() + ([0x00]*(109-meterSetupRegister.byteSize()))
+    retryAttemp = 3
+    isMeterSetupOK = False
+    for i in range(retryAttemp):
+        try:
+            logger.info(f'Set register to meter setup result to default. Atemp {i+1} of {retryAttemp}')
+            result = ser_client.set_cosem_data(1, "0;128;96;14;81;255", 2, 9, df)
+            isMeterSetupOK = result
+            logger.debug(f'Result: {result}')
+            if result == 0:
+                logger.info(f'Default set SUCCESS')
+                break
+            else:
+                logger.critical('Set meter setup FAILED')
+                exit(1)
+        except:
+            if i<retryAttemp-1:
+                logger.debug('Timeout. Retry process')
+                ser_client.client_logout()
+                ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL)
+                meterRegister = ser_client.get_cosem_data(1, "0;128;96;14;81;255", 2)
+                if meterRegister == df:
+                    logger.debug('Meter configuration is already saved by the meter')
+                    break
+            pass
+    
+    # TRANSMIT RTC
     rtcCommand = [1, 0xff, 0x0a, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-    measuredFreqValue = []
     for i in range(0, 1):
         logger.info('Apply 4 Hz')
         result = ser_client.set_cosem_data(1, '0;128;96;14;82;255', 2, 9, rtcCommand)
-    measuredFreqValue = input('Measured RTC: ')
-    measuredFreqValue = float(measuredFreqValue)
+    
+    time.sleep(5)
+    measuredFreqValue = 0
+    for i in range(5):
+        try:
+            measuredFreqValue = instrument.read()
+            measuredFreqValue = float(measuredFreqValue[:-1])
+            if 3 < measuredFreqValue < 4:
+                logger.info(f'Measured value: {measuredFreqValue}')
+                break
+            measuredFreqValue = 0
+        except:
+            time.sleep(2)
     logger.info(f'Measured rtc: {measuredFreqValue}')
+    if measuredFreqValue == 0:
+        exit('Error when get instrument data')
     
     RtcCalibrationValue = ( ( (measuredFreqValue-4)/4) * 10**6 ) / 0.954
     RtcCalibrationValue = int(RtcCalibrationValue)
@@ -355,12 +403,9 @@ if ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL):
     
     verifyData = ser_client.get_cosem_data(1, "0;128;96;14;81;255", 2)
     meterSetupRegister.extract(verifyData)
-    meterSetupRegister.info()
     ser_client.client_logout()
-
     logger.info('RTC Calibration is completed')
     input('Press ENTER to Exit')
-    
     
     if not os.path.exists(f'{CURRENT_PATH}/logs/rtc_calibration.csv'):
         f = open(f'{CURRENT_PATH}/logs/rtc_calibration.csv', 'w')
