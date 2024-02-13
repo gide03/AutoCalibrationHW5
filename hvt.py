@@ -123,7 +123,7 @@ TestList = (
     TestId(b'?25\r', 'HW EPF', False),
     TestId(b'?26(0)\r', 'DI I/O-1', False),
     TestId(b'?26(1)\r', 'DI I/O-2', False),
-    TestId(b'?26(2)\r', 'DI I/O-3', True, waitStateMsg='Push modem busy!'),
+    TestId(b'?26(2)\r', 'DI I/O-3', True, expectedResult= True, waitStateMsg='Push modem busy!'),
     TestId(b'?27(0)\r', 'Ext I/O-1', True),
     TestId(b'?27(1)\r', 'Ext I/O-1', True),
     TestId(b'?28\r', 'MainB I/O', True),
