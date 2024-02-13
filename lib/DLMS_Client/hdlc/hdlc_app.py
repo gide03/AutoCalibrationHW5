@@ -75,8 +75,9 @@ class HdlcClass:
         return checkType
 
     def getSrcAddressLength(self, buffer):
+        self.rx_srcAddressLength = 1
         for i in range(hdlcConstant.LengthServerAddressField):
-            if buffer[hdlcConstant.OffsetDestAddress + i] & hdlcConstant.MaskExtendedAddress != hdlcConstant.MaskExtendedAddress:
+            if buffer[hdlcConstant.OffsetSrcAddress + i] & hdlcConstant.MaskExtendedAddress != hdlcConstant.MaskExtendedAddress:
                 self.rx_srcAddressLength = self.rx_srcAddressLength + 1
             else:
                 break
@@ -125,7 +126,7 @@ class HdlcClass:
                 else:
                     if ((self.rx_srcAddress & hdlcConstant.MaskLogicalDeviceAddress) >> 16) == 1: # should not only 1 later
                         if self.rx_srcAddressLength > 1:
-                            if (self.rx_destAddress & hdlcConstant.MaskPhysicalDeviceAddress) == i_deviceAddress:
+                            if (self.rx_srcAddress & hdlcConstant.MaskPhysicalDeviceAddress) == i_deviceAddress:
                                 checkType = frameError.NO_ERROR
                             else:
                                 checkType = frameError.PHYSICAL_DEVICE_ADDRESS_ERROR
@@ -138,7 +139,7 @@ class HdlcClass:
     def checkDestAddress(self, buffer):
         checkType = frameError.DEST_ADDR_FIELD_ERROR
         if len(buffer) >= (2 * hdlcConstant.LengthFlag + hdlcConstant.LengthFrameFormatField + self.rx_srcAddressLength + 1):
-            destAddress = buffer[hdlcConstant.OffsetDestAddress + self.rx_srcAddressLength]
+            destAddress = buffer[hdlcConstant.OffsetDestAddress]
             if (destAddress & hdlcConstant.MaskExtendedAddress) == hdlcConstant.MaskExtendedAddress:
                 self.rx_destAddress = destAddress >> 1
                 checkType = frameError.NO_ERROR
@@ -245,8 +246,6 @@ class HdlcClass:
             self.rx_pf_bit = pollFinalBit.PF_OFF
     
     def checkRxHdlcFrame(self, buffer, meterAddress):
-        self.rx_srcAddressLength = 1
-
         error = self.checkFrameFlag(buffer)
 
         if error == frameError.NO_ERROR:
