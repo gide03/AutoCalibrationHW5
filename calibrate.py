@@ -335,6 +335,7 @@ class Calibration:
         self.meterSetupRegister.MeterVoltageType.value = 0
         self.meterSetupRegister.MeterPowerSupplyType.value = 0
         self.meterSetupRegister.ServicesenseMode.value = 0
+        self.meterSetupRegister.AnticreepConstant.value = 793
         
         # Calculate new data frame
         configurationData = self.calibrationRegister.dataFrame()
