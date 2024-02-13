@@ -333,11 +333,13 @@ class Calibration:
         self.meterSetupRegister.MeterForm.value = 133
         self.meterSetupRegister.MeterClass.value = 5
         self.meterSetupRegister.FrequencySelection.value = 0
-        self.meterSetupRegister.MeterType.value = 0
+        self.meterSetupRegister.MeterType.value = 1
         self.meterSetupRegister.MeterVoltageType.value = 0
-        self.meterSetupRegister.MeterPowerSupplyType.value = 0
+        self.meterSetupRegister.MeterPowerSupplyType.value = 1
         self.meterSetupRegister.ServicesenseMode.value = 0
         self.meterSetupRegister.AnticreepConstant.value = 793
+        self.meterSetupRegister.LED1Energy.value = 2
+        self.meterSetupRegister.LED2Energy.value = 1
         
         # Calculate new data frame
         configurationData = self.calibrationRegister.dataFrame()
