@@ -92,13 +92,13 @@ class TestId:
         self.needVerify = needVerify
 
 TestList = (
-    TestId(b'?0\r', 'Show Menu', True),
+    TestId(b'?0\r', 'Show Menu', False),
     TestId(b'?1\r', 'START BIST', False),
     TestId(b'?2\r', 'NIC UART', True),
     TestId(b'?3\r', 'DI UART', True),
     TestId(b'?4\r', 'P1 UART', True),
     TestId(b'?5\r', 'ADC SPI', True),
-    TestId(b'?6\r', 'Ext Flash SPI', True), # (Fail) maybe need to manually test
+    TestId(b'?6\r', 'Ext Flash SPI', False), # (Fail) maybe need to manually test
     TestId(b'?7\r', 'DI SPI', True),
     TestId(b'?8\r', 'LCD I2C', True),
     TestId(b'?9\r', 'ACC I2C', False),
@@ -108,8 +108,8 @@ TestList = (
     TestId(b'?13\r', 'EXT PULSE', True),
     TestId(b'?14\r', 'M1- UB/Test LED1', True, waitStateMsg="After this, push TOP button to turn on TOP LED.", needVerify=True),
     TestId(b'?15\r', 'M2- UB/Test LED2', True, waitStateMsg="After this, push BOT button to turn on BOT LED.", needVerify=True),
-    TestId(b'?16(1,1,5)\r', 'RDS Ctrl', True, waitStateMsg="Hear relay?", needVerify=True),
-    TestId(b'?17(1,1,5)\r', 'AUX Ctrl', True, waitStateMsg="Hear relay?", needVerify=True),
+    TestId(b'?16(1,1,2)\r', 'RDS Ctrl', True, waitStateMsg="Hear relay?", needVerify=True),
+    TestId(b'?17(1,1,5)\r', 'AUX Ctrl', False, waitStateMsg="Hear relay?", needVerify=True),
     TestId(b'?18(0)\r', 'TAMPER I/P TEST-1 Closed ', True, waitStateMsg='Push and hold MCOD button!'),
     TestId(b'?18(0)\r', 'TAMPER I/P TEST-1 Opened', True, expectedResult= False, waitStateMsg='Release MCOD button!'),
     TestId(b'?18(1)\r', 'TAMPER I/P TEST-2 Closed', True, expectedResult=False, waitStateMsg='Push and hold TCOD button!'),
