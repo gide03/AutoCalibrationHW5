@@ -9,6 +9,7 @@ from lib.GenyTestBench.GenyUtil import ElementSelector, PowerSelector, VoltageRa
 from lib.GenyTestBench.GenyTestBench import GenyTestBench
 from lib.DLMS_Client.dlms_service.dlms_service import mechanism
 from lib.DLMS_Client.DlmsCosemClient import DlmsCosemClient
+from lib.DLMS_Client.hdlc.hdlc_app import AddrSize
 
 from ConfigurationRegister import Register, RegisterWrapper
 
@@ -16,7 +17,7 @@ PHASE_ANGLE_CONFIG = 60
 GENY_SLOT_INDEX = 3         # NOTE: Posisi meter pada slot geny test bench, ditihitung dari palig kiri 1, 2, 3
 ERROR_ACCEPTANCE = 0.4      # NOTE: Kriteria meter sukses dikalibrasi dalam persen
 GENY_USB_PORT = 'COM1'
-METER_USB_PORT = 'COM31'
+METER_USB_PORT = 'COM3'
 
 # Create a logger
 logger = logging.getLogger(__name__)
@@ -232,6 +233,7 @@ class Calibration:
             login_retry=1,
             meter_addr=Calibration.commSetting.METER_ADDR,
             client_nb=Calibration.commSetting.CLIENT_NUMBER,
+            address_size = AddrSize.ONE_BYTE
         )
         self.instantRegister = None
     
