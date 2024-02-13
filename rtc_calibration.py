@@ -310,6 +310,7 @@ if ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL):
         result = ser_client.set_cosem_data(1, '0;128;96;14;82;255', 2, 9, rtcCommand)
     measuredFreqValue = input('Measured RTC: ')
     measuredFreqValue = float(measuredFreqValue)
+    logger.info(f'Measured rtc: {measuredFreqValue}')
     
     RtcCalibrationValue = ( ( (measuredFreqValue-4)/4) * 10**6 ) / 0.954
     RtcCalibrationValue = int(RtcCalibrationValue)
