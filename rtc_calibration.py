@@ -13,7 +13,7 @@ from lib.DLMS_Client.DlmsCosemClient import DlmsCosemClient, TransportSec
 from ConfigurationRegister import Register, RegisterWrapper
 
 
-METER_USB_PORT = "/dev/ttyUSB0"
+METER_USB_PORT = "com31"
 
 
 if not os.path.exists(f'{CURRENT_PATH}/logs'):
@@ -327,10 +327,12 @@ if ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL):
     
     df = meterSetupRegister.dataFrame() + ([0x00]*(109-meterSetupRegister.byteSize()))
     retryAttemp = 3
+    isMeterSetupOK = False
     for i in range(retryAttemp):
         try:
             logger.info(f'Set register to meter setup result. Atemp {i+1} of {retryAttemp}')
             result = ser_client.set_cosem_data(1, "0;128;96;14;81;255", 2, 9, df)
+            isMeterSetupOK = result
             logger.debug(f'Result: {result}')
             if result == 0:
                 logger.info(f'Set meter setup SUCCESS')
@@ -357,3 +359,11 @@ if ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL):
 
     logger.info('RTC Calibration is completed')
     input('Press ENTER to Exit')
+    
+    
+    if not os.path.exists(f'{CURRENT_PATH}/logs/rtc_calibration.csv'):
+        f = open(f'{CURRENT_PATH}/logs/rtc_calibration.csv', 'w')
+        f.write('meter id;measured frequency;RtcCalibrationValue;isMeterSetupOK;calibration gain readback\n')
+    
+    with open(f'{CURRENT_PATH}/logs/rtc_calibration.csv', 'a') as f:
+        print(f'{meterId};{measuredFreqValue};{RtcCalibrationValue};{isMeterSetupOK};{meterSetupRegister.RTCCalibration.value}', file=f)
