@@ -7,14 +7,12 @@ class hdlcParam:
     negotSizeWindowTx = 1
     negotSizeInfoFieldRx = 128
     negotSizeInfoFieldTx = 128
-    maxApduSize = 0
 
-    def __init__(self, sizeWindowRx, sizeWindowTx, maxInfoField, max_apdu_size):
+    def __init__(self, sizeWindowRx, sizeWindowTx, maxInfoField):
         self.configSizeWindowRx = sizeWindowRx
         self.configSizeWindowTx = sizeWindowTx
         self.configSizeInfoFieldRx = maxInfoField
         self.configSizeInfoFieldTx = maxInfoField
-        self.maxApduSize = max_apdu_size
     
     def constructNegotResponse(self):
         tempBuff = []

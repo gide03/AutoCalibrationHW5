@@ -1,10 +1,8 @@
 import serial
 import time
-from .hdlc.hdlc_app import HdlcClass
+from .hdlc.hdlc_app import HdlcClass, AddrSize
 from .hdlc.hdlc_util import controlType, segmentBit, pollFinalBit, frameError
 from .hdlc.hdlc_parameter import hdlcParam
-from .dlmsCosemUtil import aareConstant
-from .dlmsCosemUtil import authError
 from .dlmsCosemUtil import cosemAccessResult
 from .dlmsCosemUtil import convert_dtype_to_string, convert_data_result_to_string
 from .dlms_service.dlms_service import DlmsService, mechanism, ServiceTag, unserialize_data, extract_data
@@ -38,7 +36,7 @@ class DlmsCosemClient:
 	counter_R = 0
 	counter_S = 0
 
-	def __init__(self, port="", baudrate=9600, parity=serial.PARITY_NONE, bytesize=serial.EIGHTBITS, stopbits=serial.STOPBITS_ONE, timeout=0.3, inactivity_timeout=60, login_retry=1, meter_addr=16, client_nb=16, direct_ser = None):
+	def __init__(self, port="", baudrate=9600, parity=serial.PARITY_NONE, bytesize=serial.EIGHTBITS, stopbits=serial.STOPBITS_ONE, timeout=0.3, inactivity_timeout=60, login_retry=1, meter_addr=16, client_nb=16, address_size=AddrSize.FOUR_BYTE, direct_ser = None):
 		if direct_ser != None:
 			self.ser = direct_ser
 		else:
@@ -57,10 +55,9 @@ class DlmsCosemClient:
 		windowRx = 1
 		maxSizeInfoField = 128
 		maxCosemBuffSize = 512
-		hdlc_param = hdlcParam(windowRx, windowTx, maxSizeInfoField, maxCosemBuffSize)
-		self.hdlc = HdlcClass(hdlc_param)
+		hdlc_param = hdlcParam(windowRx, windowTx, maxSizeInfoField)
+		self.hdlc = HdlcClass(hdlc_param, address_size)
 		self.dlms = DlmsService(maxCosemBuffSize)
-		self.max_apdu_size = maxCosemBuffSize
 		self.is_connected = False
 		self.last_GET_status = cosemAccessResult.success
 		self.last_SET_status = cosemAccessResult.success
@@ -83,7 +80,7 @@ class DlmsCosemClient:
 	def start_inactivity(self):
 		self.is_inactive = False
 		self.timer_count = 0
-		Thread(target = self.count_inactivity, daemon=True, args = ()).start()
+		Thread(target = self.count_inactivity, args = ()).start()
 
 	def count_inactivity(self):
 		while self.timer_count <= self.timeout_counter and not self.is_timer_stop:
@@ -437,17 +434,16 @@ class DlmsCosemClient:
 				check_resp = self.read_msg()
 				if check_resp == frameError.NO_ERROR:
 					rx_frameInfo = self.hdlc.rx_frameInfo
-					if rx_frameInfo[aareConstant.offsetAcseDiagVal] == authError.NO_ERROR:
-						login_success = True
+					login_success = self.aare_check(self.hdlc.rx_frameInfo)
+					if login_success:
 						self.is_connected = True
-					elif rx_frameInfo[aareConstant.offsetAcseDiagVal] == authError.LLS_PASSWORD_ERROR:
-						print('Wrong LLS Password')
+					else:
 						self.client_logout()
 				else:
 					login_success = False
 					self.client_logout()
 		return login_success
-	
+
 	def client_logout(self, is_rlrq=False, is_protected=False):
 		if is_rlrq:
 			self.send_rlrq_msg(1, True, is_protected)
@@ -599,7 +595,7 @@ class DlmsCosemClient:
 		result = None
 		if self.is_connected:
 			set_buffer, remaining_buff = self.dlms.get_SET_REQ_frame(ServiceTag.SET_REQUEST_NORMAL, class_id, obis_code, att_id, dtype, value)
-			if len(set_buffer) > self.max_apdu_size:
+			if len(set_buffer) > self.dlms.max_apdu_size:
 				set_buffer, remaining_buff = self.dlms.get_SET_REQ_frame(ServiceTag.SET_REQUEST_FIRST_DATABLOCK, class_id, obis_code, att_id, dtype, value)
 			self.send_set_req_buffer(set_buffer)
 			self.remain_set_buff = remaining_buff

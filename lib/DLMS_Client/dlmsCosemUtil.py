@@ -48,12 +48,6 @@ class aareConstant:
 	fail2UserInfoVal = [0x0E, 0x01, 0x06, 0x01]
 	offsetAcseDiagVal = 27
 
-
-class authError:
-	NO_ERROR = 0x00
-	LLS_PASSWORD_ERROR = 0x0D
-	AARQ_ERROR = 0x02
-
 class secMechanism:
 	LOWEST_LEVEL = 0
 	LOW_LEVEL = 1
@@ -103,6 +97,7 @@ class cosemAccessResult:
 	data_block_unaivailable = 14
 	long_get_aborted = 15
 	other_reason = 250
+	unknown_result = 255
 
 def convert_dtype_to_string(dtype):
 	return {
@@ -138,5 +133,6 @@ def convert_data_result_to_string(dres):
 		cosemAccessResult.scope_of_access_violated : "SCOPE OF ACCESS VIOLATED",
 		cosemAccessResult.data_block_unaivailable : "DATA BLOCK UNAVAILABLE",
 		cosemAccessResult.long_get_aborted : "LONG GET ABORTED",
-		cosemAccessResult.other_reason : 'OTHER REASON'
+		cosemAccessResult.other_reason : 'OTHER REASON',
+		cosemAccessResult.unknown_result : 'UNKNOWN RESULT'
     }[dres]

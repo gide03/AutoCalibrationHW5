@@ -829,7 +829,7 @@ class DlmsService:
 		buff.append(0x1F)
 		buff.append(0x04)
 		buff.append(0x00)
-		buff = buff + [0x00, 0x3D, 0x1B] # Conformance negotiation, hardcoded for now
+		buff = buff + [0x1c, 0x1e, 0x7d]#[0x00, 0x3D, 0x1B] # Conformance negotiation, hardcoded for now
 		buff.append(self.max_apdu_size >> 8 & 0xFF)
 		buff.append(self.max_apdu_size & 0xFF)
 		return buff
@@ -840,11 +840,26 @@ class DlmsService:
 			is_success = False
 		return is_success
 
+	def check_asso_diag(self, buffer):
+		is_success = True
+		if buffer[-1] not in [userDiag.SUCCESS, userDiag.AUTHENTICATION_REQUIRED]:
+			if buffer[-1] == userDiag.AUTHENTICATION_FAILURE:
+				print("WRONG LLS PASSWORD!")
+			else:
+				print("SOMETHING WRONG IN AARQ")
+			is_success = False
+		return is_success
+
 	def check_meter_sysT(self, buffer):
 		self.sys_TS = buffer[2:]
 
 	def check_StoC(self, buffer):
 		self.security.set_StoC(buffer[2:])
+
+	def validateUserInfo(self, buffer):
+		value = buffer[12] << 8
+		value += buffer[13]
+		self.max_apdu_size = value
 
 	def get_RLRQ_frame(self, reason, is_with_ui, is_protected):
 		buff = [ServiceTag.RLRQ]
@@ -925,6 +940,7 @@ class DlmsService:
 				check_index += 1
 				length = checkBuffer[check_index]
 				check_index += 1
+				is_ok = is_ok and self.check_asso_diag(checkBuffer[check_index:check_index+length])
 				check_index += length
 			elif checkBuffer[check_index] == AARETag.SysTitle:
 				check_index += 1
@@ -942,6 +958,7 @@ class DlmsService:
 				check_index += 1
 				length = checkBuffer[check_index]
 				check_index += 1
+				self.validateUserInfo(checkBuffer[check_index:check_index+length])
 				check_index += length
 			else:
 				check_index += 1
