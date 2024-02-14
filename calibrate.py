@@ -3,6 +3,7 @@ import serial
 import time
 import pathlib
 import os
+from datetime import datetime
 CURRENT_PATH = pathlib.Path(__file__).parent.absolute()
 
 from lib.GenyTestBench.GenyUtil import ElementSelector, PowerSelector, VoltageRange
@@ -236,7 +237,7 @@ class Calibration:
             address_size = AddrSize.ONE_BYTE
         )
         self.instantRegister = None
-    
+            
     def login(self):
         for i in range(2):
             loginResult = False
@@ -253,6 +254,29 @@ class Calibration:
     def logout(self):
         logger.info('Logout from meter')
         self.ser_client.client_logout()
+    
+    def syncClock(self):
+        logger.info('Synchronize clock')
+        currentDate = datetime.now()
+        year_HB = (currentDate.year >> 8) & 0xff
+        year_LB = currentDate.year & 0xff
+        month = currentDate.month
+        day = currentDate.day
+        weekday = currentDate.weekday() + 1
+        hour = currentDate.hour
+        minute = currentDate.minute
+        second = currentDate.second
+        hundredths = 0
+        deviation = 128
+        clockstatus = 0
+        season = 0
+        dlmsDate = [year_HB, year_LB, month, day, weekday, hour, minute, second, hundredths, deviation, clockstatus, season]
+        result = self.ser_client.set_cosem_data(8, "0;0;1;0;0;255", 2, 9, dlmsDate)
+        logger.info(f'Set current time: {result} -- {currentDate} inDlms: {dlmsDate}')
+        logger.info('Check meter time after synchronize')
+        clock_data = self.ser_client.get_cosem_data(8, "0;0;1;0;0;255", 2)
+        logger.info("CLOCK DATA:", clock_data)
+        
                 
     def fetch_calibration_data(self, verbose = False):
         logger.info('read calibration data')
@@ -598,7 +622,7 @@ def main():
     logger.info('Reading fw version')
     fwVersion = meter.ser_client.get_cosem_data(1, '1;0;0;2;0;255', 2)
     logger.info(f'Firmware Version: {bytes(fwVersion).decode("utf-8")}')
-    
+        
     # STEP 1: Configure LED setup
     logger.info('Setup LED1')
     led1_setResult = meter.ser_client.set_cosem_data(1, '0;128;96;6;8;255', 2, 2, [
@@ -713,6 +737,7 @@ def main():
 
     # STEP 8: 
     logger.info('FINISHING')
+    meter.syncClock()
     logger.debug('Logout from meter')
     meter.logout()
     logger.debug('Turn off meter')
