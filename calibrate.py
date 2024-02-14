@@ -7,9 +7,8 @@ CURRENT_PATH = pathlib.Path(__file__).parent.absolute()
 
 from lib.GenyTestBench.GenyUtil import ElementSelector, PowerSelector, VoltageRange
 from lib.GenyTestBench.GenyTestBench import GenyTestBench
-from lib.DLMS_Client.dlms_service.dlms_service import mechanism
+from lib.DLMS_Client.dlms_service.dlms_service import mechanism, CosemDataType
 from lib.DLMS_Client.DlmsCosemClient import DlmsCosemClient
-from lib.DLMS_Client.dlmsCosemUtil import cosemDataType
 from lib.DLMS_Client.hdlc.hdlc_app import AddrSize
 
 from ConfigurationRegister import Register, RegisterWrapper
@@ -604,57 +603,56 @@ def main():
     
     # STEP 1: Configure KYZ
     logger.info('Set KYZ')
-    kyzValue = [
-        [cosemDataType.enum, 1],
-        [cosemDataType.enum, 0],
-        [cosemDataType.float32, 6],
-        [cosemDataType.enum, 4],
-        [cosemDataType.enum, 3],
-        [cosemDataType.enum, 1],
-        [cosemDataType.enum, 3],
-        [cosemDataType.enum, 1],
-        [cosemDataType.long_unsigned, 17280],
-        [cosemDataType.long , 11520],
-        [cosemDataType.double_long, 0]
-    ]
+    kyz_cosem = (
+    '0;128;96;6;23;255',
+    '0;128;96;6;24;255',
+    '0;128;96;6;25;255'
+    )
+    kyz_dtype = (
+        CosemDataType.e_ENUM,
+        CosemDataType.e_ENUM,
+        CosemDataType.e_FLOAT32,
+        CosemDataType.e_ENUM,
+        CosemDataType.e_ENUM,
+        CosemDataType.e_ENUM,
+        CosemDataType.e_ENUM,
+        CosemDataType.e_ENUM,
+        CosemDataType.e_LONG_UNSIGNED,
+        CosemDataType.e_LONG_UNSIGNED,
+        CosemDataType.e_DOUBLE_LONG_UNSIGNED
+    )
+    for kyz in kyz_cosem:
+        kyzData = []
+        readData = meter.ser_client.get_cosem_data(1, kyz, 2)
+        logger.info(f'Data read of {kyz} -- {readData}')
+        for idx, (data,dtype) in enumerate(zip(readData, kyz_dtype)):
+            temp = [dtype,data]
+            if idx == 1:
+                temp = [dtype, 0]
+            kyzData.append(temp)
+            
+        logger.info(f'Data will be set: {kyzData}')
+        result = meter.ser_client.set_cosem_data(1, kyz, 2, 2, kyzData)
+        logger.info(f'Set esult: {result}')
     
-    # Enum Value="1" />
-    # <Enum Value="0" />
-    # <Float32 Value="6" />
-    # <Enum Value="4" />
-    # <Enum Value="3" />
-    # <Enum Value="1" />
-    # <Enum Value="3" />
-    # <Enum Value="1" />
-    # <UInt16 Value="17280" />
-    # <UInt16 Value="11520" />
-    # <UInt32 Value="0" />
-    result = meter.ser_client.set_cosem_data(1, '0;128;96;6;23;255', 2, 2, kyzValue)
-    logger.info(f'set 0;128;96;6;23;255 -- {result}')
-    result = meter.ser_client.set_cosem_data(1, '0;128.96;6;24;255', 2, 2, kyzValue)
-    logger.info(f'set 0;128.96;6;24;255 -- {result}')
-    result = meter.ser_client.set_cosem_data(1, '0;128;96;6;25;255', 2, 2, kyzValue)
-    logger.info(f'set 0;128;96;6;25;255 -- {result}')
-    
-    
-    # STEP 1: Configure meter setup
+    # STEP 2: Configure meter setup
     # NOTE: Length of meter setup not match (101 Bytes instead of 109 Bytes). There is CRC that need to be update. Currently using hardcoded configuration from HW5+ software
     logger.info('Writing meter setup')
     meter.configure_meter_setup()
             
-    # STEP 2: Calibrate phase delay
+    # STEP 3: Calibrate phase delay
     logger.info('CALIBRATING Phase Delay')
     readBackRegisters = geny.readBackSamplingData()
     # TODO: Add phase direction protection
     meter.calibratePhaseDelay(readBackRegisters)
     
-    # STEP 3: Calibrate Vrms and Irms
+    # STEP 4: Calibrate Vrms and Irms
     logger.info('CALIBRATING Vrms Irms')
     meter.fetch_calibration_data()
     readBackRegisters = geny.readBackSamplingData()
     meter.calibrateVoltageAndCurrent(readBackRegisters)
     
-    # STEP 4: Calibrate Power Active
+    # STEP 5: Calibrate Power Active
     logger.info('CALIBRATING POWER ACTIVE')
     meter.fetch_calibration_data()
     readBackRegisters = geny.readBackSamplingData()
@@ -688,8 +686,7 @@ def main():
                     logger.debug(f'{reg.name} -> {reg.value}')
         time.sleep(1)
 
-    # STEP x: 
-    # TODO 1: Error verification a
+    # STEP 6: 
     logger.info('FINISHING')
     logger.debug('Logout from meter')
     meter.logout()
