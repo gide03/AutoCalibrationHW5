@@ -338,8 +338,6 @@ class Calibration:
         self.meterSetupRegister.MeterPowerSupplyType.value = 1
         self.meterSetupRegister.ServicesenseMode.value = 0
         self.meterSetupRegister.AnticreepConstant.value = 793
-        self.meterSetupRegister.LED1Energy.value = 2
-        self.meterSetupRegister.LED2Energy.value = 1
         
         # Calculate new data frame
         configurationData = self.calibrationRegister.dataFrame()
@@ -601,7 +599,34 @@ def main():
     fwVersion = meter.ser_client.get_cosem_data(1, '1;0;0;2;0;255', 2)
     logger.info(f'Firmware Version: {bytes(fwVersion).decode("utf-8")}')
     
-    # STEP 1: Configure KYZ
+    # STEP 1: Configure LED setup
+    logger.info('Setup LED1')
+    led1_setResult = meter.ser_client.set_cosem_data(1, '0;128;96;6;8;255', 2, 2, [
+        [CosemDataType.e_DOUBLE_LONG_UNSIGNED, 0], # <UInt32 Value="0" />
+        [CosemDataType.e_LONG_UNSIGNED, 10], # <UInt16 Value="10" />
+        [CosemDataType.e_LONG_UNSIGNED, 11520], # <UInt16 Value="11520" />
+        [CosemDataType.e_LONG_UNSIGNED, 11520], # <UInt16 Value="11520" />
+        [CosemDataType.e_ENUM, 4],# <Enum Value="4" />
+        [CosemDataType.e_ENUM, 3],# <Enum Value="3" />
+        [CosemDataType.e_ENUM, 2],# <Enum Value="2" />
+        [CosemDataType.e_ENUM, 1]# <Enum Value="1" />
+    ])
+    logger.info(f'Result: {led1_setResult}')
+    
+    logger.info('Setup LED2')
+    led2_setResult = meter.ser_client.set_cosem_data(1, '0;128;96;6;20;255', 2, 2, [
+        [CosemDataType.e_DOUBLE_LONG_UNSIGNED, 0], # <UInt32 Value="0" />
+        [CosemDataType.e_LONG_UNSIGNED, 10], # <UInt16 Value="10" />
+        [CosemDataType.e_LONG_UNSIGNED, 11520], # <UInt16 Value="11520" />
+        [CosemDataType.e_LONG_UNSIGNED, 11520], # <UInt16 Value="11520" />
+        [CosemDataType.e_ENUM, 4],# <Enum Value="4" />
+        [CosemDataType.e_ENUM, 3],# <Enum Value="3" />
+        [CosemDataType.e_ENUM, 1],# <Enum Value="1" />
+        [CosemDataType.e_ENUM, 1]# <Enum Value="1" />
+    ])  
+    logger.info(f'Result: {led2_setResult}')  
+    
+    # STEP 2: Configure KYZ
     logger.info('Set KYZ')
     kyz_cosem = (
     '0;128;96;6;23;255',
@@ -635,24 +660,24 @@ def main():
         result = meter.ser_client.set_cosem_data(1, kyz, 2, 2, kyzData)
         logger.info(f'Set esult: {result}')
     
-    # STEP 2: Configure meter setup
+    # STEP 3: Configure meter setup
     # NOTE: Length of meter setup not match (101 Bytes instead of 109 Bytes). There is CRC that need to be update. Currently using hardcoded configuration from HW5+ software
     logger.info('Writing meter setup')
     meter.configure_meter_setup()
             
-    # STEP 3: Calibrate phase delay
+    # STEP 4: Calibrate phase delay
     logger.info('CALIBRATING Phase Delay')
     readBackRegisters = geny.readBackSamplingData()
     # TODO: Add phase direction protection
     meter.calibratePhaseDelay(readBackRegisters)
     
-    # STEP 4: Calibrate Vrms and Irms
+    # STEP 5: Calibrate Vrms and Irms
     logger.info('CALIBRATING Vrms Irms')
     meter.fetch_calibration_data()
     readBackRegisters = geny.readBackSamplingData()
     meter.calibrateVoltageAndCurrent(readBackRegisters)
     
-    # STEP 5: Calibrate Power Active
+    # STEP 6: Calibrate Power Active
     logger.info('CALIBRATING POWER ACTIVE')
     meter.fetch_calibration_data()
     readBackRegisters = geny.readBackSamplingData()
@@ -669,7 +694,7 @@ def main():
                     logger.debug(f'{reg.name} -> {reg.value}')
         time.sleep(1)
         
-    # STEP 5: Verify error at power factor 1
+    # STEP 7: Verify error at power factor 1
     logger.info('VERIFY ERROR AT PF 1')
     geny.setPowerFactor(1)
     geny.apply()
@@ -686,7 +711,7 @@ def main():
                     logger.debug(f'{reg.name} -> {reg.value}')
         time.sleep(1)
 
-    # STEP 6: 
+    # STEP 8: 
     logger.info('FINISHING')
     logger.debug('Logout from meter')
     meter.logout()
