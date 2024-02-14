@@ -84,21 +84,10 @@ class FrequencyCounterInstrument:
                 return response
             except:
                 pass
-    
 
     def read(self):
-        # for data in self.INIT_COMMAND:
-        #     self.selectedInstrument.write(data)
-        #     try:
-        #         response = self.selectedInstrument.read()
-        #         print(response, type(response))
-        #         return response
-        #     except:
-        #         pass
-        self.selectedInstrument.write(":MEASure:FREQuency:BURSt?\n")
-        response = self.selectedInstrument.read()
-        # print(type(response))
-        return float(response[:-1])
+        response = self.selectedInstrument.query(':MEASure:FREQuency:BURSt?\n', 1)
+        return float(response)
 class commSetting:
     METER_ADDR = 100
     CLIENT_NUMBER = 0x73
@@ -344,7 +333,7 @@ if ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL):
         logger.info('Apply 4 Hz')
         result = ser_client.set_cosem_data(1, '0;128;96;14;82;255', 2, 9, rtcCommand)
     
-    time.sleep(5)
+    time.sleep(3)
     measuredFreqValue = 0
     for i in range(5):
         try:
