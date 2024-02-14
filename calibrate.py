@@ -275,7 +275,7 @@ class Calibration:
         logger.info(f'Set current time: {result} -- {currentDate} inDlms: {dlmsDate}')
         logger.info('Check meter time after synchronize')
         clock_data = self.ser_client.get_cosem_data(8, "0;0;1;0;0;255", 2)
-        logger.info("CLOCK DATA:", clock_data)
+        logger.info(f"CLOCK DATA: {clock_data}")
         
                 
     def fetch_calibration_data(self, verbose = False):
