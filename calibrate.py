@@ -9,6 +9,7 @@ from lib.GenyTestBench.GenyUtil import ElementSelector, PowerSelector, VoltageRa
 from lib.GenyTestBench.GenyTestBench import GenyTestBench
 from lib.DLMS_Client.dlms_service.dlms_service import mechanism
 from lib.DLMS_Client.DlmsCosemClient import DlmsCosemClient
+from lib.DLMS_Client.dlmsCosemUtil import cosemDataType
 from lib.DLMS_Client.hdlc.hdlc_app import AddrSize
 
 from ConfigurationRegister import Register, RegisterWrapper
@@ -385,7 +386,12 @@ class Calibration:
         
         logger.info('fetching initial calibration data')
         self.fetch_calibration_data()
-        logger.info('update phase delay parameters to 0')
+        logger.info('Set phase direction to 1')
+        self.calibrationRegister.PhDirectionA.value = 1
+        self.calibrationRegister.PhDirectionB.value = 1
+        self.calibrationRegister.PhDirectionC.value = 1
+        self.calibrationRegister.PhDirectionN.value = 1        
+        logger.info('update phase delay parameters to 0')        
         self.calibrationRegister.PhaseDelayA.value = 0
         self.calibrationRegister.PhaseDelayB.value = 0
         self.calibrationRegister.PhaseDelayC.value = 0
@@ -595,6 +601,41 @@ def main():
     logger.info('Reading fw version')
     fwVersion = meter.ser_client.get_cosem_data(1, '1;0;0;2;0;255', 2)
     logger.info(f'Firmware Version: {bytes(fwVersion).decode("utf-8")}')
+    
+    # STEP 1: Configure KYZ
+    logger.info('Set KYZ')
+    kyzValue = [
+        [cosemDataType.enum, 1],
+        [cosemDataType.enum, 0],
+        [cosemDataType.float32, 6],
+        [cosemDataType.enum, 4],
+        [cosemDataType.enum, 3],
+        [cosemDataType.enum, 1],
+        [cosemDataType.enum, 3],
+        [cosemDataType.enum, 1],
+        [cosemDataType.long_unsigned, 17280],
+        [cosemDataType.long , 11520],
+        [cosemDataType.double_long, 0]
+    ]
+    
+    # Enum Value="1" />
+    # <Enum Value="0" />
+    # <Float32 Value="6" />
+    # <Enum Value="4" />
+    # <Enum Value="3" />
+    # <Enum Value="1" />
+    # <Enum Value="3" />
+    # <Enum Value="1" />
+    # <UInt16 Value="17280" />
+    # <UInt16 Value="11520" />
+    # <UInt32 Value="0" />
+    result = meter.ser_client.set_cosem_data(1, '0;128;96;6;23;255', 2, 2, kyzValue)
+    logger.info(f'set 0;128;96;6;23;255 -- {result}')
+    result = meter.ser_client.set_cosem_data(1, '0;128.96;6;24;255', 2, 2, kyzValue)
+    logger.info(f'set 0;128.96;6;24;255 -- {result}')
+    result = meter.ser_client.set_cosem_data(1, '0;128;96;6;25;255', 2, 2, kyzValue)
+    logger.info(f'set 0;128;96;6;25;255 -- {result}')
+    
     
     # STEP 1: Configure meter setup
     # NOTE: Length of meter setup not match (101 Bytes instead of 109 Bytes). There is CRC that need to be update. Currently using hardcoded configuration from HW5+ software
