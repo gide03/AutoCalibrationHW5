@@ -168,6 +168,7 @@ class GenyTestBench(GenySys):
         
     def readBackSamplingData(self, verbose=False):
         if self.mode == GenyTestBench.Mode.ENERGY_ERROR_CALIBRATION:
+            samplingRegister = None
             for i in range(2):
                 try:
                     buffer = self.energyErrorCalibration.readbackSampling()
@@ -181,9 +182,10 @@ class GenyTestBench(GenySys):
                         print('================================')
                         for reg in samplingRegister:
                             print(f'{reg.name} -> {reg.value}')
-                    return self.energyErrorCalibration.readbackSamplingRegister
                 except:
                     continue
+            if samplingRegister != None:
+                return self.energyErrorCalibration.readbackSamplingRegister
             raise TimeoutError
             
     def readBackError(self, verbose=False, timeout=100):

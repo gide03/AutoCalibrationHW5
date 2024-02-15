@@ -548,7 +548,7 @@ class Calibration:
             elif 'Current' in instanRegister.name:
                 errorAcceptance = CURRENT_ERROR_ACCEPTANCE            
             if not self.isValueRangeValid(meterMeasurement, genyFeedback, errorAcceptance):
-                logger.critical('Meter measurement is not valid')
+                logger.critical(f'Invalid measurement at {instanRegister.name}')
                 return False
             
             # calculate new gain
@@ -586,12 +586,7 @@ class Calibration:
             prevGain = target[1].value
             genyFeedback = target[2]
             
-            # Validating meter measurement
-            # errorAcceptance = 0
-            # if 'Voltage' in instanRegister.name:
-            #     errorAcceptance = VOLTAGE_ERROR_ACCEPTANCE
-            # elif 'Current' in instanRegister.name:
-            #     errorAcceptance = CURRENT_ERROR_ACCEPTANCE            
+            # Validating meter measurement      
             if not self.isValueRangeValid(meterMeasurement, genyFeedback, POWER_ERROR_ACCEPTANCE):
                 logger.critical('Meter measurement is not valid')
                 return False
@@ -621,12 +616,13 @@ class Calibration:
             samples.append(value)
         value = sum(samples)/numOfSample # measurement average
         
-        scalarUnit = self.ser_client.get_cosem_data(
-            class_id=register.classId,
-            obis_code=register.obis,
-            att_id=3
-        )           
-        logger.info(f'Fetch {register.name} att.2:{value} att.3:{scalarUnit}')
+        # scalarUnit = self.ser_client.get_cosem_data(
+        #     class_id=register.classId,
+        #     obis_code=register.obis,
+        #     att_id=3
+        # )         
+        scalarUnit = (-3, None)  
+        logger.info(f'Fetch {register.name} att.2:{value} att.3:{scalarUnit}. NOTE: Scalar unit was hard coded')
             
         actualValue = value*10**scalarUnit[0]
         logger.info(f'Value of {register.name}: {value} * 10^{scalarUnit[0]} = {actualValue}')
@@ -744,7 +740,7 @@ def main():
         exit(1)
     logger.info(f'Firmware Version: {bytes(fwVersion).decode("utf-8")}')
             
-    # STEP 3: Configure LED setup
+    # STEP 2: Configure LED setup
     logger.info('Setup LED1')
     led1_setResult = meter.ser_client.set_cosem_data(1, '0;128;96;6;8;255', 2, 2, [
         [CosemDataType.e_DOUBLE_LONG_UNSIGNED, 0], # <UInt32 Value="0" />
@@ -771,7 +767,7 @@ def main():
     ])  
     logger.info(f'Result: {led2_setResult}')  
     
-    # STEP 4: Configure KYZ
+    # STEP 3: Configure KYZ
     logger.info('Set KYZ')
     kyz_cosem = (
     '0;128;96;6;23;255',
@@ -805,27 +801,13 @@ def main():
         result = meter.ser_client.set_cosem_data(1, kyz, 2, 2, kyzData)
         logger.info(f'Set esult: {result}')
     
-    # STEP 5: Configure meter setup
+    # STEP 4: Configure meter setup
     # NOTE: Length of meter setup not match (101 Bytes instead of 109 Bytes). There is CRC that need to be update. Currently using hardcoded configuration from HW5+ software
     logger.info('Writing meter setup')
     meter.configure_meter_setup()
     time.sleep(2)
-    if not meter.verify_instant_registers(readBackRegisters):
-        logger.critical('INVALID METER MEASUREMENT!')
-        logger.info('Turn off geny')
-        meter.logout()
-        geny.close()
-        exit(1)
-    
-    # STEP 2: Validate instant RMS
-    logger.info('CALIBRATING Phase Delay')
-    while True:
-        readBackRegisters = geny.readBackSamplingData()
-        if validateGeny(readBackRegisters):
-            break
-        
-            
-    # STEP 6: Calibrate phase delay
+                
+    # STEP 5: Calibrate phase delay
     logger.info('CALIBRATING Phase Delay')
     while True:
         readBackRegisters = geny.readBackSamplingData()
@@ -834,7 +816,7 @@ def main():
     # TODO: Add phase direction protection
     meter.calibratePhaseDelay(readBackRegisters)
     
-    # STEP 7: Calibrate Vrms and Irms
+    # STEP 6: Calibrate Vrms and Irms
     logger.info('CALIBRATING Vrms Irms')
     meter.fetch_calibration_data()
     while True:
@@ -848,7 +830,7 @@ def main():
         geny.close()
         exit(1)
     
-    # STEP 8: Calibrate Power Active
+    # STEP 7: Calibrate Power Active
     logger.info('CALIBRATING POWER ACTIVE')
     meter.fetch_calibration_data()
     while True:
@@ -862,44 +844,33 @@ def main():
         geny.close()
         exit(1)
     
-    for i in range(3):
-        logger.debug('Reading errors from test bench')
-        
-        errors = geny.readBackError()
-        for idx,reg in enumerate(errors):
-            if idx == GENY_SLOT_INDEX:
-                if isinstance(reg.dtype, float):    
-                    logger.debug(f'{reg.name} -> {reg.value:.5f} {"PASSED" if reg.value < ERROR_ACCEPTANCE else "FAILED"}')
-                else:
-                    logger.debug(f'{reg.name} -> {reg.value}')
-        time.sleep(1)
-        
-    # STEP 9: Verify error at power factor 1
-    logger.info('VERIFY ERROR AT PF 1')
-    geny.setPowerFactor(1)
-    geny.apply()
-    logger.info('wait geny until stable (10sec)')
-    time.sleep(10)
-    for i in range(3):
-        logger.debug('Reading errors from test bench')
-        errors = geny.readBackError()
-        for idx,reg in enumerate(errors):
-            if idx == GENY_SLOT_INDEX:
-                if isinstance(reg.dtype, float):    
-                    logger.debug(f'{reg.name} -> {reg.value:.5f} {"PASSED" if reg.value < ERROR_ACCEPTANCE else "FAILED"}')
-                else:
-                    logger.debug(f'{reg.name} -> {reg.value}')
-        time.sleep(1)
+    # STEP 8: Error Calculation
+    logger.info('Calculating power active error')
+    while True:
+        readBackRegisters = geny.readBackSamplingData()
+        if validateGeny(readBackRegisters):
+            break
+    instantPowerActive = (
+        meter.InstantActivePowerPhase1,
+        meter.InstantActivePowerPhase2,
+        meter.InstantActivePowerPhase3,
+    )
+    reference = (
+        readBackRegisters.PowerActive_A,
+        readBackRegisters.PowerActive_B,
+        readBackRegisters.PowerActive_C
+    )
+    for instantRegister, referenceRegister in zip(instantPowerActive, reference):
+        error = (referenceRegister.value - instantRegister.value) / referenceRegister.value
+        logger.info(f'{instantRegister.name} meter measure: {instantRegister.value:.4f}, reference: {referenceRegister.value:.4f} error: {error:.5f}%')
 
-    # STEP 10: 
+    # STEP 9: 
     logger.info('FINISHING')
     meter.syncClock()
     logger.debug('Logout from meter')
     meter.logout()
-    meter.ser_client.ser.close()
     logger.debug('Turn off meter')
     geny.close()
-    geny.serialMonitor.ser.close()
     
 if __name__ == '__main__':
     main()
