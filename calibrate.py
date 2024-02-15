@@ -3,6 +3,7 @@ import serial
 import time
 import pathlib
 import os
+import math
 from datetime import datetime
 CURRENT_PATH = pathlib.Path(__file__).parent.absolute()
 
@@ -14,11 +15,21 @@ from lib.DLMS_Client.hdlc.hdlc_app import AddrSize
 
 from ConfigurationRegister import Register, RegisterWrapper
 
-PHASE_ANGLE_CONFIG = 60
+# Serial and geny portn configuration
 GENY_SLOT_INDEX = 3         # NOTE: Posisi meter pada slot geny test bench, ditihitung dari palig kiri 1, 2, 3
 ERROR_ACCEPTANCE = 0.4      # NOTE: Kriteria meter sukses dikalibrasi dalam persen
 GENY_USB_PORT = 'COM1'
 METER_USB_PORT = 'COM3'
+
+# Test bench nominal configuration
+PHASE_ANGLE_CONFIG = 60     # in Degree
+VOLTAGE_NOMINAL = 230       # in Volt
+CURRENT_NOMINAL = 30        # in Ampere
+BOOTING_TIME = 10            # in Second
+
+# Error relate to meter Vrms and Irms measurement
+VOLTAGE_ERROR_ACCEPTANCE = 30/100   # in Percent
+CURRENT_ERROR_ACCEPTANCE = 30/100   # in Percent
 
 # Create a logger
 logger = logging.getLogger(__name__)
@@ -112,85 +123,85 @@ class Calibration:
 
     class CalibrationRegister(RegisterWrapper):
         def __init__(self):
-            self.GainActiveE_A = Register('GainActiveE_A', 'uint16')
-            self.GainActiveE_B = Register('GainActiveE_B', 'uint16')
-            self.GainActiveE_C = Register('GainActiveE_C', 'uint16')
-            self.GainReactiveE_A = Register('GainReactiveE_A', 'uint16')
-            self.GainReactiveE_B = Register('GainReactiveE_B', 'uint16')
-            self.GainReactiveE_C = Register('GainReactiveE_C', 'uint16')
-            self.GainIrms_A = Register('GainIrms_A', 'uint16')
-            self.GainIrms_B = Register('GainIrms_B', 'uint16')
-            self.GainIrms_C = Register('GainIrms_C', 'uint16')
-            self.GainIrms_N = Register('GainIrms_N', 'uint16')
-            self.GainVrms_A = Register('GainVrms_A', 'uint16')
-            self.GainVrms_B = Register('GainVrms_B', 'uint16')
-            self.GainVrms_C = Register('GainVrms_C', 'uint16')
-            self.FilterK1PhA = Register('FilterK1PhA', 'int16')
-            self.FilterK2PhA = Register('FilterK2PhA', 'int16')
-            self.FilterK3PhA = Register('FilterK3PhA', 'int16')
-            self.FilterK1PhB = Register('FilterK1PhB', 'int16')
-            self.FilterK2PhB = Register('FilterK2PhB', 'int16')
-            self.FilterK3PhB = Register('FilterK3PhB', 'int16')
-            self.FilterK1PhC = Register('FilterK1PhC', 'int16')
-            self.FilterK2PhC = Register('FilterK2PhC', 'int16')
-            self.FilterK3PhC = Register('FilterK3PhC', 'int16')
-            self.FilterGainSlope = Register('FilterGainSlope', 'int16')
-            self.TempK1V = Register('TempK1V', 'int16')
-            self.TempK2V = Register('TempK2V', 'int16')
-            self.TempK3V = Register('TempK3V', 'int16')
-            self.TempK1I = Register('TempK1I', 'int16')
-            self.TempK2I = Register('TempK2I', 'int16')
-            self.TempK3I = Register('TempK3I', 'int16')
-            self.TempK1ShiftVolt = Register('TempK1ShiftVolt', 'uint8')
-            self.TempK2ShiftVolt = Register('TempK2ShiftVolt', 'uint8')
-            self.TempK3ShiftVolt = Register('TempK3ShiftVolt', 'uint8')
-            self.TempK1ShiftCurr = Register('TempK1ShiftCurr', 'uint8')
-            self.TempK2ShiftCurr = Register('TempK2ShiftCurr', 'uint8')
-            self.TempK3ShiftCurr = Register('TempK3ShiftCurr', 'uint8')
-            self.NonLinearK1 = Register('NonLinearK1', 'int16')
-            self.NonLinearK2 = Register('NonLinearK2', 'int16')
-            self.NonLinearK3 = Register('NonLinearK3', 'int16')
-            self.NonLinearK4 = Register('NonLinearK4', 'int16')
-            self.NonLinearK5 = Register('NonLinearK5', 'int16')
-            self.NonLinearK6 = Register('NonLinearK6', 'int16')
-            self.NonLinearK7 = Register('NonLinearK7', 'uint16')
-            self.NonLinearBreakCurr0 = Register('NonLinearBreakCurr0', 'uint16')
-            self.NonLinearBreakCurr1 = Register('NonLinearBreakCurr1', 'uint16')
-            self.NonLinearK1Shift = Register('NonLinearK1Shift', 'uint8')
-            self.NonLinearK2Shift = Register('NonLinearK2Shift', 'uint8')
-            self.NonLinearK3Shift = Register('NonLinearK3Shift', 'uint8')
-            self.NonLinearK4Shift = Register('NonLinearK4Shift', 'uint8')
-            self.NonLinearK5Shift = Register('NonLinearK5Shift', 'uint8')
-            self.NonLinearK6Shift = Register('NonLinearK6Shift', 'uint8')
-            self.VrmsSlope = Register('VrmsSlope', 'int16')
-            self.VrmsOffset = Register('VrmsOffset', 'uint16')
-            self.Cal_Temperature = Register('Cal_Temperature', 'int16')
-            self.ActualTemperature = Register('ActualTemperature', 'int16')
-            self.PhDirectionA = Register('PhDirectionA', 'int8')
-            self.PhDirectionB = Register('PhDirectionB', 'int8')
-            self.PhDirectionC = Register('PhDirectionC', 'int8')
-            self.PhDirectionN = Register('PhDirectionN', 'int8')
-            self.PhaseDelayA = Register('PhaseDelayA', 'uint16')
-            self.PhaseDelayB = Register('PhaseDelayB', 'uint16')
-            self.PhaseDelayC = Register('PhaseDelayC', 'uint16')
-            self.PhaseDelayN = Register('PhaseDelayN', 'uint16')
-            self.FrequencyWindow = Register('FrequencyWindow', 'uint8')
-            self.Wh_Offset_A = Register('Wh_Offset_A', 'int16')
-            self.Wh_Offset_B = Register('Wh_Offset_B', 'int16')
-            self.Wh_Offset_C = Register('Wh_Offset_C', 'int16')
-            self.Varh_Offset_A = Register('Varh_Offset_A', 'int16')
-            self.Varh_Offset_B = Register('Varh_Offset_B', 'int16')
-            self.Varh_Offset_C = Register('Varh_Offset_C', 'int16')
+            self.GainActiveE_A = Register('GainActiveE_A', 'uint16', 32768)
+            self.GainActiveE_B = Register('GainActiveE_B', 'uint16', 32768)
+            self.GainActiveE_C = Register('GainActiveE_C', 'uint16', 32768)
+            self.GainReactiveE_A = Register('GainReactiveE_A', 'uint16', 32768)
+            self.GainReactiveE_B = Register('GainReactiveE_B', 'uint16', 32768)
+            self.GainReactiveE_C = Register('GainReactiveE_C', 'uint16', 32768)
+            self.GainIrms_A = Register('GainIrms_A', 'uint16', 33000)
+            self.GainIrms_B = Register('GainIrms_B', 'uint16', 33000)
+            self.GainIrms_C = Register('GainIrms_C', 'uint16', 33000)
+            self.GainIrms_N = Register('GainIrms_N', 'uint16', 33000)
+            self.GainVrms_A = Register('GainVrms_A', 'uint16', 29000)
+            self.GainVrms_B = Register('GainVrms_B', 'uint16', 29000)
+            self.GainVrms_C = Register('GainVrms_C', 'uint16', 29000)
+            self.FilterK1PhA = Register('FilterK1PhA', 'int16', 0)
+            self.FilterK2PhA = Register('FilterK2PhA', 'int16', 0)
+            self.FilterK3PhA = Register('FilterK3PhA', 'int16', 0)
+            self.FilterK1PhB = Register('FilterK1PhB', 'int16', 0)
+            self.FilterK2PhB = Register('FilterK2PhB', 'int16', 0)
+            self.FilterK3PhB = Register('FilterK3PhB', 'int16', 0)
+            self.FilterK1PhC = Register('FilterK1PhC', 'int16', 0)
+            self.FilterK2PhC = Register('FilterK2PhC', 'int16', 0)
+            self.FilterK3PhC = Register('FilterK3PhC', 'int16', 0)
+            self.FilterGainSlope = Register('FilterGainSlope', 'int16', 0)
+            self.TempK1V = Register('TempK1V', 'int16', 0)
+            self.TempK2V = Register('TempK2V', 'int16', 0)
+            self.TempK3V = Register('TempK3V', 'int16', 0)
+            self.TempK1I = Register('TempK1I', 'int16', 0)
+            self.TempK2I = Register('TempK2I', 'int16', 0)
+            self.TempK3I = Register('TempK3I', 'int16', 0)
+            self.TempK1ShiftVolt = Register('TempK1ShiftVolt', 'uint8', 0)
+            self.TempK2ShiftVolt = Register('TempK2ShiftVolt', 'uint8', 0)
+            self.TempK3ShiftVolt = Register('TempK3ShiftVolt', 'uint8', 0)
+            self.TempK1ShiftCurr = Register('TempK1ShiftCurr', 'uint8', 0)
+            self.TempK2ShiftCurr = Register('TempK2ShiftCurr', 'uint8', 0)
+            self.TempK3ShiftCurr = Register('TempK3ShiftCurr', 'uint8', 0)
+            self.NonLinearK1 = Register('NonLinearK1', 'int16', 0)
+            self.NonLinearK2 = Register('NonLinearK2', 'int16', 0)
+            self.NonLinearK3 = Register('NonLinearK3', 'int16', 0)
+            self.NonLinearK4 = Register('NonLinearK4', 'int16', 0)
+            self.NonLinearK5 = Register('NonLinearK5', 'int16', 0)
+            self.NonLinearK6 = Register('NonLinearK6', 'int16', 0)
+            self.NonLinearK7 = Register('NonLinearK7', 'uint16', 32768)
+            self.NonLinearBreakCurr0 = Register('NonLinearBreakCurr0', 'uint16', 312)
+            self.NonLinearBreakCurr1 = Register('NonLinearBreakCurr1', 'uint16', 1875)
+            self.NonLinearK1Shift = Register('NonLinearK1Shift', 'uint8', 0)
+            self.NonLinearK2Shift = Register('NonLinearK2Shift', 'uint8', 0)
+            self.NonLinearK3Shift = Register('NonLinearK3Shift', 'uint8', 0)
+            self.NonLinearK4Shift = Register('NonLinearK4Shift', 'uint8', 0)
+            self.NonLinearK5Shift = Register('NonLinearK5Shift', 'uint8', 0)
+            self.NonLinearK6Shift = Register('NonLinearK6Shift', 'uint8', 0)
+            self.VrmsSlope = Register('VrmsSlope', 'int16', 0)
+            self.VrmsOffset = Register('VrmsOffset', 'uint16', 32768)
+            self.Cal_Temperature = Register('Cal_Temperature', 'int16', 16121)
+            self.ActualTemperature = Register('ActualTemperature', 'int16', 800)
+            self.PhDirectionA = Register('PhDirectionA', 'int8', 1)
+            self.PhDirectionB = Register('PhDirectionB', 'int8', 1)
+            self.PhDirectionC = Register('PhDirectionC', 'int8', 1)
+            self.PhDirectionN = Register('PhDirectionN', 'int8', 1)
+            self.PhaseDelayA = Register('PhaseDelayA', 'uint16', 0)
+            self.PhaseDelayB = Register('PhaseDelayB', 'uint16', 0)
+            self.PhaseDelayC = Register('PhaseDelayC', 'uint16', 0)
+            self.PhaseDelayN = Register('PhaseDelayN', 'uint16', 0)
+            self.FrequencyWindow = Register('FrequencyWindow', 'uint8', 4)
+            self.Wh_Offset_A = Register('Wh_Offset_A', 'int16', 0)
+            self.Wh_Offset_B = Register('Wh_Offset_B', 'int16', 0)
+            self.Wh_Offset_C = Register('Wh_Offset_C', 'int16', 0)
+            self.Varh_Offset_A = Register('Varh_Offset_A', 'int16', 0)
+            self.Varh_Offset_B = Register('Varh_Offset_B', 'int16', 0)
+            self.Varh_Offset_C = Register('Varh_Offset_C', 'int16', 0)
             
             # Aditional for version 2
-            self.tf_control = Register('tf_control', 'uint32')
-            self.tf_coeff_a0 = Register('tf_coeff_a0', 'int32')
-            self.tf_coeff_a1 = Register('tf_coeff_a1', 'int32')
-            self.tf_coeff_a2 = Register('tf_coeff_a2', 'int32')
-            self.tf_coeff_a3 = Register('tf_coeff_a3', 'int32')
-            self.tf_coeff_b1 = Register('tf_coeff_b1', 'int32')
-            self.tf_coeff_b2 = Register('tf_coeff_b2', 'int32')
-            self.tf_coeff_b3 = Register('tf_coeff_b3', 'int32')
+            self.tf_control = Register('tf_control', 'uint32', 0)
+            self.tf_coeff_a0 = Register('tf_coeff_a0', 'int32', 7972264)
+            self.tf_coeff_a1 = Register('tf_coeff_a1', 'int32', -7541100)
+            self.tf_coeff_a2 = Register('tf_coeff_a2', 'int32', -409914)
+            self.tf_coeff_a3 = Register('tf_coeff_a3', 'int32', 0)
+            self.tf_coeff_b1 = Register('tf_coeff_b1', 'int32', -8387011)
+            self.tf_coeff_b2 = Register('tf_coeff_b2', 'int32', 0)
+            self.tf_coeff_b3 = Register('tf_coeff_b3', 'int32', 0)
 
     # Instant Register List
     InstantVoltagePhase1 = CosemObject('InstantVoltagePhase1', 3, "1;0;32;7;0;255")
@@ -277,6 +288,45 @@ class Calibration:
         clock_data = self.ser_client.get_cosem_data(8, "0;0;1;0;0;255", 2)
         logger.info(f"CLOCK DATA: {clock_data}")
         
+    def verify_instant_registers(self, genySamplingReadback):
+        '''
+            Comparing value of Vrms and Irms based on Geny readback
+        '''
+        logger.info('validating instant register measurement.')
+        logger.debug(f'error acceptance: voltage {VOLTAGE_ERROR_ACCEPTANCE}, current {CURRENT_ERROR_ACCEPTANCE}')
+        targets = (
+            (self.InstantVoltagePhase1, genySamplingReadback.Voltage_A.value ),
+            (self.InstantVoltagePhase2, genySamplingReadback.Voltage_B.value ),
+            (self.InstantVoltagePhase3, genySamplingReadback.Voltage_C.value ),
+            (self.InstantCurrentPhase1, genySamplingReadback.Current_A.value ),
+            (self.InstantCurrentPhase2, genySamplingReadback.Current_B.value ),
+            (self.InstantCurrentPhase3, genySamplingReadback.Current_C.value ),
+            # (self.InstantActivePowerPhase1, genySamplingReadback.PowerActive_A.value ),
+            # (self.InstantActivePowerPhase2, genySamplingReadback.PowerActive_B.value ),
+            # (self.InstantActivePowerPhase3, genySamplingReadback.PowerActive_C.value)
+        )
+        
+        valid = []
+        for target in targets:
+            register = target[0]
+            referenceValue = target[1]
+            logger.info(f'Fetching {register.name}')
+            # readResult = self.ser_client.get_cosem_data(register.classId, register.obis, 2)
+            readResult = self.fetch_register(register)
+            isValid = False
+            if 'Voltage' in register.name :
+                upperError = referenceValue + (referenceValue*VOLTAGE_ERROR_ACCEPTANCE)
+                lowerError = referenceValue - (referenceValue*VOLTAGE_ERROR_ACCEPTANCE)
+                if lowerError < readResult < upperError:
+                    isValid = True
+            elif 'Current' in register.name:
+                upperError = referenceValue + (referenceValue*CURRENT_ERROR_ACCEPTANCE)
+                lowerError = referenceValue - (referenceValue*CURRENT_ERROR_ACCEPTANCE)
+                if lowerError < readResult < upperError:
+                    isValid = True
+            logger.info(f'{register.name} value: {readResult} is between {lowerError} {upperError} ? -- {isValid}')
+            valid.append(isValid)
+        return all(valid)
                 
     def fetch_calibration_data(self, verbose = False):
         logger.info('read calibration data')
@@ -403,10 +453,21 @@ class Calibration:
         raise TimeoutError
             
     def calibratePhaseDelay(self, genySamplingFeedback):
+        '''
+            Procedure:
+                [1] Fetch calibration data
+                [2] Set phase direction each phase
+                [3] Update phase parameter
+                [4] 
+        '''
         global PHASE_ANGLE_CONFIG
         
         logger.info('fetching initial calibration data')
+        # [1]
         self.fetch_calibration_data()
+        # [/1]
+        
+        # [2]
         logger.info('Set phase direction to 1')
         self.calibrationRegister.PhDirectionA.value = 1
         self.calibrationRegister.PhDirectionB.value = 1
@@ -430,6 +491,7 @@ class Calibration:
         logger.info('write calibration data')
         result = self.write_calibration_data()
         logger.info(f'calibration data result: {result}')
+        #  [/2]
         
         # NOTE: DON'T CHANGE THIS BLOCK WIHTOUT INFORM YOUR TEAM
         targets = (
@@ -478,10 +540,6 @@ class Calibration:
             prevGain = target[1].value
             genyFeedback = target[2]
             
-            # calculate error before
-            currentError = ((genyFeedback - meterMeasurement) / genyFeedback) * 100
-            errorBefore.append(currentError)
-            
             # calculate new gain
             logger.info(f'Calculate new gain for {target[1].name}')
             logger.debug(f'PrevGain: {prevGain} GenyFeedBack: {genyFeedback} MeterMasurement: {meterMeasurement}')
@@ -493,20 +551,14 @@ class Calibration:
         result = self.write_calibration_data()
         logger.info(f'set calibration register. result: {result}')
         
-        if result == 0:
-            for target in targets:
-                instanRegister = target[0]
-                meterMeasurement = self.fetch_register(instanRegister)
-                prevGain = target[1].value
-                genyFeedback = target[2]
-                
-                # calculate error before
-                currentError = ((genyFeedback - meterMeasurement) / genyFeedback) * 100
-                errorAfter.append(currentError)
-        logger.info(f'Error Before: {errorBefore}')
-        logger.info(f'Error After : {errorAfter}')        
+        # if result == 0:
+        #     for target in targets:
+        #         instanRegister = target[0]
+        #         meterMeasurement = self.fetch_register(instanRegister)
+        #         prevGain = target[1].value
+        #         genyFeedback = target[2]   
     
-    def calibratePowerActive(self, genySamplingFeedback):
+    def calibratePowerActive(self, genySamplingFeedback) -> bool:
         logger.info('fetching calibration register')
         self.fetch_calibration_data()
                 
@@ -523,6 +575,16 @@ class Calibration:
             prevGain = target[1].value
             genyFeedback = target[2]
             
+            # verify geny feedback
+            expectedGenyFeedback = (CURRENT_NOMINAL * VOLTAGE_NOMINAL) * math.cos(math.radians(PHASE_ANGLE_CONFIG))
+            acceptanceError = 30/100
+            upperError = expectedGenyFeedback + (expectedGenyFeedback*acceptanceError)
+            lowerError = expectedGenyFeedback - (expectedGenyFeedback*acceptanceError)
+            if lowerError < genyFeedback < upperError:
+                pass
+            else:
+                return False
+            
             # calculate new gain
             logger.info(f'Calculate new gain for {target[1].name}')
             newGain = (prevGain * genyFeedback) / meterMeasurement
@@ -533,6 +595,7 @@ class Calibration:
 
         result = self.write_calibration_data()
         logger.info(f'set calibration register. result: {result}')
+        return result
     
     def fetch_register(self, register, numOfSample=1):        
         logger.info('Fetch instant register value')
@@ -598,20 +661,20 @@ def main():
     logger.info('Initializing')
     logger.info('Configuring test bench')
     geny.close()
-    time.sleep(2)
+    time.sleep(3)
     geny.open()
     geny.setMode(GenyTestBench.Mode.ENERGY_ERROR_CALIBRATION)
     geny.setPowerSelector(PowerSelector._3P4W_ACTIVE)
     geny.setElementSelector(ElementSelector.EnergyErrorCalibration._COMBINE_ALL)
     geny.setVoltageRange(VoltageRange.YC99T_3C._380V)
     geny.setPowerFactor(PHASE_ANGLE_CONFIG, inDegree=True)
-    geny.setVoltage(230)
-    geny.setCurrent(30)
+    geny.setVoltage(VOLTAGE_NOMINAL)
+    geny.setCurrent(CURRENT_NOMINAL)
     geny.setCalibrationConstants(1000, 2)
     logger.debug('APPLY CONFIGURATION')
     geny.apply()
-    logger.info('WAIT METER FOR BOTTING (10 second)')    
-    time.sleep(10)
+    logger.info(f'WAIT METER FOR BOOTING ({BOOTING_TIME} second)')    
+    time.sleep(BOOTING_TIME)
     
     logger.info('LOGIN TO METER') 
     try:
@@ -619,11 +682,17 @@ def main():
     except:
         pass
     meter.login()
+    
+    # STEP 1: Reading firmware version
     logger.info('Reading fw version')
     fwVersion = meter.ser_client.get_cosem_data(1, '1;0;0;2;0;255', 2)
+    if type(fwVersion) == str:
+        logger.critical(f'Error while get fw version. Read result: {fwVersion}')
+        geny.close()
+        exit(1)
     logger.info(f'Firmware Version: {bytes(fwVersion).decode("utf-8")}')
-        
-    # STEP 1: Configure LED setup
+            
+    # STEP 3: Configure LED setup
     logger.info('Setup LED1')
     led1_setResult = meter.ser_client.set_cosem_data(1, '0;128;96;6;8;255', 2, 2, [
         [CosemDataType.e_DOUBLE_LONG_UNSIGNED, 0], # <UInt32 Value="0" />
@@ -650,7 +719,7 @@ def main():
     ])  
     logger.info(f'Result: {led2_setResult}')  
     
-    # STEP 2: Configure KYZ
+    # STEP 4: Configure KYZ
     logger.info('Set KYZ')
     kyz_cosem = (
     '0;128;96;6;23;255',
@@ -684,31 +753,68 @@ def main():
         result = meter.ser_client.set_cosem_data(1, kyz, 2, 2, kyzData)
         logger.info(f'Set esult: {result}')
     
-    # STEP 3: Configure meter setup
+    # STEP 5: Configure meter setup
     # NOTE: Length of meter setup not match (101 Bytes instead of 109 Bytes). There is CRC that need to be update. Currently using hardcoded configuration from HW5+ software
     logger.info('Writing meter setup')
     meter.configure_meter_setup()
+    time.sleep(2)
+    
+    # STEP 2: Validate instant RMS
+    readBackRegisters = geny.readBackSamplingData()
+    if not meter.verify_instant_registers(readBackRegisters):
+        logger.critical('INVALID METER MEASUREMENT!')
+        logger.info('Turn off geny')
+        meter.logout()
+        geny.close()
+        exit(1)
             
-    # STEP 4: Calibrate phase delay
+    # STEP 6: Calibrate phase delay
     logger.info('CALIBRATING Phase Delay')
     readBackRegisters = geny.readBackSamplingData()
     # TODO: Add phase direction protection
     meter.calibratePhaseDelay(readBackRegisters)
     
-    # STEP 5: Calibrate Vrms and Irms
+    # STEP 7: Calibrate Vrms and Irms
     logger.info('CALIBRATING Vrms Irms')
     meter.fetch_calibration_data()
     readBackRegisters = geny.readBackSamplingData()
     meter.calibrateVoltageAndCurrent(readBackRegisters)
     
-    # STEP 6: Calibrate Power Active
+    # STEP 8: Calibrate Power Active
     logger.info('CALIBRATING POWER ACTIVE')
-    meter.fetch_calibration_data()
-    readBackRegisters = geny.readBackSamplingData()
-    meter.calibratePowerActive(readBackRegisters)
+    for calibRetry in range(3):
+        meter.fetch_calibration_data()
+        readBackRegisters = geny.readBackSamplingData()
+        isCalibrationSuccess = meter.calibratePowerActive(readBackRegisters)
+        if not isCalibrationSuccess:
+            if calibRetry == 2:
+                logger.critical('CALIBRATION VAILED')
+                meter.logout()
+                geny.close()
+                exit(1)
+            logger.warning('Power active calibraion not valid. Retry')
+            continue
+        
+        for i in range(3):
+            logger.debug('Reading errors from test bench')
+            
+            errors = geny.readBackError()
+            for idx,reg in enumerate(errors):
+                if idx == GENY_SLOT_INDEX:
+                    if isinstance(reg.dtype, float):    
+                        logger.debug(f'{reg.name} -> {reg.value:.5f} {"PASSED" if reg.value < ERROR_ACCEPTANCE else "FAILED"}')
+                    else:
+                        logger.debug(f'{reg.name} -> {reg.value}')
+            time.sleep(1)
+        
+    # STEP 9: Verify error at power factor 1
+    logger.info('VERIFY ERROR AT PF 1')
+    geny.setPowerFactor(1)
+    geny.apply()
+    logger.info('wait geny until stable (10sec)')
+    time.sleep(10)
     for i in range(3):
         logger.debug('Reading errors from test bench')
-        
         errors = geny.readBackError()
         for idx,reg in enumerate(errors):
             if idx == GENY_SLOT_INDEX:
@@ -717,25 +823,8 @@ def main():
                 else:
                     logger.debug(f'{reg.name} -> {reg.value}')
         time.sleep(1)
-        
-    # STEP 7: Verify error at power factor 1
-    logger.info('VERIFY ERROR AT PF 1')
-    geny.setPowerFactor(1)
-    geny.apply()
-    logger.info('wait geny until stable (10sec)')
-    time.sleep(10)
-    for i in range(3):
-        logger.debug('Reading errors from test bench')
-        
-        for idx,reg in enumerate(errors):
-            if idx == GENY_SLOT_INDEX:
-                if isinstance(reg.dtype, float):    
-                    logger.debug(f'{reg.name} -> {reg.value:.5f} {"PASSED" if reg.value < ERROR_ACCEPTANCE else "FAILED"}')
-                else:
-                    logger.debug(f'{reg.name} -> {reg.value}')
-        time.sleep(1)
 
-    # STEP 8: 
+    # STEP 10: 
     logger.info('FINISHING')
     meter.syncClock()
     logger.debug('Logout from meter')

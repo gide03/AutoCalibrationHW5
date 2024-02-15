@@ -11,7 +11,7 @@ class Register:
         'int8' : 1,
     }
     
-    def __init__(self, name, c_stringDtype:str) -> None:
+    def __init__(self, name, c_stringDtype:str, value=None) -> None:
         '''
             parameters:
             - c_stringDtype (str) example: 'uint32', 'uint16', 'uint8', 'int16'
@@ -19,7 +19,7 @@ class Register:
         '''
         self.name = name
         self.c_stringDtype = c_stringDtype
-        self.value = None
+        self.value = value
         self.size = Register.byteSize[self.c_stringDtype]
         
     def setValueFromDf(self, dataFrame:list):
