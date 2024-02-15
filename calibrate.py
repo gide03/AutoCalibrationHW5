@@ -18,8 +18,8 @@ from ConfigurationRegister import Register, RegisterWrapper
 # Serial and geny portn configuration
 GENY_SLOT_INDEX = 3         # NOTE: Posisi meter pada slot geny test bench, ditihitung dari palig kiri 1, 2, 3
 ERROR_ACCEPTANCE = 0.4      # NOTE: Kriteria meter sukses dikalibrasi dalam persen
-GENY_USB_PORT = 'COM1'
-METER_USB_PORT = 'COM3'
+GENY_USB_PORT = '/dev/ttyUSB2'
+METER_USB_PORT = '/dev/ttyUSB4'
 
 # Test bench nominal configuration
 PHASE_ANGLE_CONFIG = 60     # in Degree
@@ -30,6 +30,7 @@ BOOTING_TIME = 10            # in Second
 # Error relate to meter Vrms and Irms measurement
 VOLTAGE_ERROR_ACCEPTANCE = 30/100   # in Percent
 CURRENT_ERROR_ACCEPTANCE = 30/100   # in Percent
+POWER_ERROR_ACCEPTANCE   = 30/100   # in Percent
 
 # Create a logger
 logger = logging.getLogger(__name__)
@@ -248,6 +249,11 @@ class Calibration:
             address_size = AddrSize.ONE_BYTE
         )
         self.instantRegister = None
+    
+    def isValueRangeValid(self, measuredValue, referenceValue, errorAcceptance) -> bool:
+        upperValue = referenceValue + (referenceValue*errorAcceptance)
+        lowerValue = referenceValue - (referenceValue*errorAcceptance)
+        return lowerValue < measuredValue < upperValue
             
     def login(self):
         for i in range(2):
@@ -301,9 +307,6 @@ class Calibration:
             (self.InstantCurrentPhase1, genySamplingReadback.Current_A.value ),
             (self.InstantCurrentPhase2, genySamplingReadback.Current_B.value ),
             (self.InstantCurrentPhase3, genySamplingReadback.Current_C.value ),
-            # (self.InstantActivePowerPhase1, genySamplingReadback.PowerActive_A.value ),
-            # (self.InstantActivePowerPhase2, genySamplingReadback.PowerActive_B.value ),
-            # (self.InstantActivePowerPhase3, genySamplingReadback.PowerActive_C.value)
         )
         
         valid = []
@@ -521,8 +524,6 @@ class Calibration:
     def calibrateVoltageAndCurrent(self, genySamplingFeedback):
         logger.info('fetching calibration register')
         self.fetch_calibration_data()        
-        errorBefore = []
-        errorAfter = []
         
         targets = (
             (self.InstantVoltagePhase1, self.calibrationRegister.GainVrms_A, genySamplingFeedback.Voltage_A.value),
@@ -540,6 +541,16 @@ class Calibration:
             prevGain = target[1].value
             genyFeedback = target[2]
             
+            # Validating meter measurement
+            errorAcceptance = 0
+            if 'Voltage' in instanRegister.name:
+                errorAcceptance = VOLTAGE_ERROR_ACCEPTANCE
+            elif 'Current' in instanRegister.name:
+                errorAcceptance = CURRENT_ERROR_ACCEPTANCE            
+            if not self.isValueRangeValid(meterMeasurement, genyFeedback, errorAcceptance):
+                logger.critical('Meter measurement is not valid')
+                return False
+            
             # calculate new gain
             logger.info(f'Calculate new gain for {target[1].name}')
             logger.debug(f'PrevGain: {prevGain} GenyFeedBack: {genyFeedback} MeterMasurement: {meterMeasurement}')
@@ -550,7 +561,7 @@ class Calibration:
 
         result = self.write_calibration_data()
         logger.info(f'set calibration register. result: {result}')
-        
+        return result
         # if result == 0:
         #     for target in targets:
         #         instanRegister = target[0]
@@ -575,17 +586,17 @@ class Calibration:
             prevGain = target[1].value
             genyFeedback = target[2]
             
-            # verify geny feedback
-            expectedGenyFeedback = (CURRENT_NOMINAL * VOLTAGE_NOMINAL) * math.cos(math.radians(PHASE_ANGLE_CONFIG))
-            acceptanceError = 30/100
-            upperError = expectedGenyFeedback + (expectedGenyFeedback*acceptanceError)
-            lowerError = expectedGenyFeedback - (expectedGenyFeedback*acceptanceError)
-            if lowerError < genyFeedback < upperError:
-                pass
-            else:
+            # Validating meter measurement
+            # errorAcceptance = 0
+            # if 'Voltage' in instanRegister.name:
+            #     errorAcceptance = VOLTAGE_ERROR_ACCEPTANCE
+            # elif 'Current' in instanRegister.name:
+            #     errorAcceptance = CURRENT_ERROR_ACCEPTANCE            
+            if not self.isValueRangeValid(meterMeasurement, genyFeedback, POWER_ERROR_ACCEPTANCE):
+                logger.critical('Meter measurement is not valid')
                 return False
             
-            # calculate new gain
+            # Calculating new gain
             logger.info(f'Calculate new gain for {target[1].name}')
             newGain = (prevGain * genyFeedback) / meterMeasurement
             logger.debug(f'PrefGain: {prevGain} GenyFeedback: {genyFeedback} MeterMeasurement: {meterMeasurement}')
@@ -622,6 +633,46 @@ class Calibration:
         register.value = actualValue
         return register.value
 
+def validateGeny(genyReadback):
+    params = (
+        genyReadback.Voltage_A,
+        genyReadback.Voltage_B,
+        genyReadback.Voltage_C,
+        genyReadback.Current_A,
+        genyReadback.Current_B,
+        genyReadback.Current_C,        
+    )
+    valid = []
+    for param in params:
+        isValid = False
+        genyFeedback = param.value
+        expectedGenyFeedback = 0
+        acceptanceError = 10/100
+        if 'Voltage' in param.name:
+            expectedGenyFeedback = VOLTAGE_NOMINAL
+            # acceptanceError = VOLTAGE_ERROR_ACCEPTANCE
+            # upperError = expectedGenyFeedback + (expectedGenyFeedback*acceptanceError)
+            # lowerError = expectedGenyFeedback - (expectedGenyFeedback*acceptanceError)
+            # if lowerError < genyFeedback < upperError:
+            #     isValid = True
+        elif 'Current' in param.name:
+            expectedGenyFeedback = CURRENT_NOMINAL
+            # acceptanceError = CURRENT_ERROR_ACCEPTANCE
+            # upperError = expectedGenyFeedback + (expectedGenyFeedback*acceptanceError)
+            # lowerError = expectedGenyFeedback - (expectedGenyFeedback*acceptanceError)
+            # if lowerError < genyFeedback < upperError:
+            #     isValid = True
+        elif 'Power' in param.name:
+            expectedGenyFeedback = (VOLTAGE_NOMINAL - CURRENT_NOMINAL) * math.cos(math.radians(PHASE_ANGLE_CONFIG))
+            # acceptanceError = POWER_ERROR_ACCEPTANCE
+            
+        upperError = expectedGenyFeedback + (expectedGenyFeedback*acceptanceError)
+        lowerError = expectedGenyFeedback - (expectedGenyFeedback*acceptanceError)
+        if lowerError < genyFeedback < upperError:
+            isValid = True
+        
+        valid.append(isValid)
+    return all(valid)
 
 # MAIN PROGRAM START HERE
 def main():
@@ -631,6 +682,7 @@ def main():
     
     geny = GenyTestBench(GENY_USB_PORT, 9600)
     meter = Calibration(METER_USB_PORT)
+    readBackRegisters = None
     
     if not os.path.exists(f'{CURRENT_PATH}/logs'):
         os.mkdir(f'{CURRENT_PATH}/logs')
@@ -758,54 +810,69 @@ def main():
     logger.info('Writing meter setup')
     meter.configure_meter_setup()
     time.sleep(2)
-    
-    # STEP 2: Validate instant RMS
-    readBackRegisters = geny.readBackSamplingData()
     if not meter.verify_instant_registers(readBackRegisters):
         logger.critical('INVALID METER MEASUREMENT!')
         logger.info('Turn off geny')
         meter.logout()
         geny.close()
         exit(1)
+    
+    # STEP 2: Validate instant RMS
+    logger.info('CALIBRATING Phase Delay')
+    while True:
+        readBackRegisters = geny.readBackSamplingData()
+        if validateGeny(readBackRegisters):
+            break
+        
             
     # STEP 6: Calibrate phase delay
     logger.info('CALIBRATING Phase Delay')
-    readBackRegisters = geny.readBackSamplingData()
+    while True:
+        readBackRegisters = geny.readBackSamplingData()
+        if validateGeny(readBackRegisters):
+            break
     # TODO: Add phase direction protection
     meter.calibratePhaseDelay(readBackRegisters)
     
     # STEP 7: Calibrate Vrms and Irms
     logger.info('CALIBRATING Vrms Irms')
     meter.fetch_calibration_data()
-    readBackRegisters = geny.readBackSamplingData()
-    meter.calibrateVoltageAndCurrent(readBackRegisters)
+    while True:
+        readBackRegisters = geny.readBackSamplingData()
+        if validateGeny(readBackRegisters):
+            break
+    isCalibrationSuccess = meter.calibrateVoltageAndCurrent(readBackRegisters)
+    if not isCalibrationSuccess:
+        logger.critical('CALIBRATION VAILED')
+        meter.logout()
+        geny.close()
+        exit(1)
     
     # STEP 8: Calibrate Power Active
     logger.info('CALIBRATING POWER ACTIVE')
-    for calibRetry in range(3):
-        meter.fetch_calibration_data()
+    meter.fetch_calibration_data()
+    while True:
         readBackRegisters = geny.readBackSamplingData()
-        isCalibrationSuccess = meter.calibratePowerActive(readBackRegisters)
-        if not isCalibrationSuccess:
-            if calibRetry == 2:
-                logger.critical('CALIBRATION VAILED')
-                meter.logout()
-                geny.close()
-                exit(1)
-            logger.warning('Power active calibraion not valid. Retry')
-            continue
+        if validateGeny(readBackRegisters):
+            break
+    isCalibrationSuccess = meter.calibratePowerActive(readBackRegisters)
+    if not isCalibrationSuccess:
+        logger.critical('CALIBRATION VAILED')
+        meter.logout()
+        geny.close()
+        exit(1)
+    
+    for i in range(3):
+        logger.debug('Reading errors from test bench')
         
-        for i in range(3):
-            logger.debug('Reading errors from test bench')
-            
-            errors = geny.readBackError()
-            for idx,reg in enumerate(errors):
-                if idx == GENY_SLOT_INDEX:
-                    if isinstance(reg.dtype, float):    
-                        logger.debug(f'{reg.name} -> {reg.value:.5f} {"PASSED" if reg.value < ERROR_ACCEPTANCE else "FAILED"}')
-                    else:
-                        logger.debug(f'{reg.name} -> {reg.value}')
-            time.sleep(1)
+        errors = geny.readBackError()
+        for idx,reg in enumerate(errors):
+            if idx == GENY_SLOT_INDEX:
+                if isinstance(reg.dtype, float):    
+                    logger.debug(f'{reg.name} -> {reg.value:.5f} {"PASSED" if reg.value < ERROR_ACCEPTANCE else "FAILED"}')
+                else:
+                    logger.debug(f'{reg.name} -> {reg.value}')
+        time.sleep(1)
         
     # STEP 9: Verify error at power factor 1
     logger.info('VERIFY ERROR AT PF 1')
@@ -829,8 +896,10 @@ def main():
     meter.syncClock()
     logger.debug('Logout from meter')
     meter.logout()
+    meter.ser_client.ser.close()
     logger.debug('Turn off meter')
     geny.close()
+    geny.serialMonitor.ser.close()
     
 if __name__ == '__main__':
     main()
