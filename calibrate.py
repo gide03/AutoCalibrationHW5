@@ -426,7 +426,7 @@ class Calibration:
                 
         retry = 5
         logger.info('Constructing data frame')
-        meterSetupBuffer = self.meterSetupRegister.dataFrame() + ([0x00]*(109-self.meterSetupRegister.byteSize()))
+        meterSetupBuffer = self.meterSetupRegister.dataFrame()
         # NOTE: Different byte size and unknown CRC calculation type
         for i in range(retry):
             try:

@@ -300,7 +300,7 @@ if ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL):
         configurationData.pop(-1)
     newCRC = calRunningCRC16(configurationData)
     meterSetupRegister.CRC.value = newCRC
-    df = meterSetupRegister.dataFrame() + ([0x00]*(109-meterSetupRegister.byteSize()))
+    df = meterSetupRegister.dataFrame()
     retryAttemp = 3
     isMeterSetupOK = False
     for i in range(retryAttemp):
@@ -369,7 +369,7 @@ if ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL):
     meterSetupRegister.CRC.value = newCRC 
     
     # SEND NEW METER SETUP
-    df = meterSetupRegister.dataFrame() + ([0x00]*(109-meterSetupRegister.byteSize()))
+    df = meterSetupRegister.dataFrame()
     retryAttemp = 3
     isMeterSetupOK = False
     for i in range(retryAttemp):
