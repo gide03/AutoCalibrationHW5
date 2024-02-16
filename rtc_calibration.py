@@ -256,7 +256,7 @@ ser_client = DlmsCosemClient(
     parity=serial.PARITY_NONE,
     bytesize=serial.EIGHTBITS,
     stopbits=serial.STOPBITS_ONE,
-    timeout=0.3,
+    timeout=0.05,
     inactivity_timeout=10,
     login_retry=1,
     meter_addr=commSetting.METER_ADDR,
@@ -335,12 +335,18 @@ if ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL):
     # READ FREQUENCY MEASUREMENT FROM INSTRUMENT
     sample = []
     measuredFreqValue = 0
-    for i in range(2):
-        measuredFreqValue = instrument.read()
-        logger.debug(measuredFreqValue)
-        if 3.0 < measuredFreqValue and  measuredFreqValue < 5:
-            logger.info(f'Measured value: {measuredFreqValue}Hz')
-            sample.append(measuredFreqValue)
+    for i in range(5):
+        try:
+            measuredFreqValue = instrument.read()
+            logger.debug(measuredFreqValue)
+            if 3.0 < measuredFreqValue and  measuredFreqValue < 5:
+                logger.info(f'Measured value: {measuredFreqValue}Hz')
+                sample.append(measuredFreqValue)
+                
+            if len(sample) == 2:
+                break
+        except:
+            pass
         
     if len(sample) == 0:
         exit('Error when get instrument data')
@@ -394,7 +400,7 @@ if ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL):
     verifyData = ser_client.get_cosem_data(1, "0;128;96;14;81;255", 2)
     meterSetupRegister.extract(verifyData)
     ser_client.client_logout()
-    logger.info('RTC Calibration is completed')
+    logger.info('RTC Calibration is finished')
     input('Press ENTER to Exit')
     
     if not os.path.exists(f'{CURRENT_PATH}/logs/rtc_calibration.csv'):
