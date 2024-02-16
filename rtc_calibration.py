@@ -13,7 +13,7 @@ from lib.DLMS_Client.DlmsCosemClient import DlmsCosemClient, TransportSec
 from ConfigurationRegister import Register, RegisterWrapper
 
 
-METER_USB_PORT = "com31"
+METER_USB_PORT = "com4"
 
 
 if not os.path.exists(f'{CURRENT_PATH}/logs'):
@@ -44,27 +44,29 @@ logger.addHandler(file_handler)
 logger.addHandler(console_handler)
 # End of LOGGER  Configuration
 
-class FrequencyCounterInstrument:
+class PendulumInstrument:
     INIT_COMMAND = (
         "*RST\n"
         "*CLS\n"
         ":INP:IMP 1E6\n",
-        ":INP2:IMP 1E6\n",
         ":INP:LEV:AUTO ON\n",
-        ":INP2:LEV:AUTO ON\n",
         ":INP:COUP DC\n",
-        ":INP2:COUP DC\n",
+        # ":INP2:IMP 1E6\n",
+        # ":INP2:LEV:AUTO ON\n",
+        # ":INP2:COUP DC\n",
     )
     
     def __init__(self):
         self.rm = visa.ResourceManager()
-        logger.debug('searching instrument')
+        print('searching instrument')
         self.instrument_list = self.rm.list_resources()
-        logger.debug(f'instrument list: {self.instrument_list}')
+        # print(f'instrument list: {self.instrument_list}')
         
         self.selectedInstrument = ''
         for instrument in self.instrument_list:
             if 'USB' in instrument:
+                print('Found instrument')
+                print(f'Applying {instrument}')
                 self.selectedInstrument = self.rm.open_resource(instrument)
                 break
         if self.selectedInstrument == '':
@@ -72,22 +74,17 @@ class FrequencyCounterInstrument:
         # instrument_info = rm.resource_info('USB0::0x14EB::0x0090::389645::INSTR')
         # self.instrument = self.rm.open_resource('USB0::0x14EB::0x0090::389645::INSTR')
         # print(instrument_info)
-        # self.sendInit()
+        self.sendInit()
     
     def sendInit(self):
         for data in self.INIT_COMMAND:
-            print(f'Send {data}')
             self.selectedInstrument.write(data)
-            try:
-                response = self.selectedInstrument.read()
-                print(response, type(response))
-                return response
-            except:
-                pass
+            time.sleep(0.1)    
 
-    def read(self):
+    def read(self):        
         response = self.selectedInstrument.query(':MEASure:FREQuency:BURSt?\n', 1)
         return float(response)
+    
 class commSetting:
     METER_ADDR = 100
     CLIENT_NUMBER = 0x73
@@ -248,7 +245,9 @@ class MeterSetup(RegisterWrapper):
         self.Reserved3 = Register('Reserved3', 'uint16')
         self.CRC = Register('CRC', 'uint16')
 
-instrument = FrequencyCounterInstrument()
+logger.info('Init Instrument')
+instrument = PendulumInstrument()
+logger.info('Init Dlms Client')
 calibrationRegister = CalibrationRegister()
 meterSetupRegister = MeterSetup()
 ser_client = DlmsCosemClient(
@@ -328,30 +327,30 @@ if ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL):
             pass
     
     # TRANSMIT RTC
-    rtcCommand = [1, 0xff, 0x0a, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    rtcCommand = [1, 0xF0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
     for i in range(0, 1):
         logger.info('Apply 4 Hz')
         result = ser_client.set_cosem_data(1, '0;128;96;14;82;255', 2, 9, rtcCommand)
     
-    time.sleep(3)
+    # READ FREQUENCY MEASUREMENT FROM INSTRUMENT
+    sample = []
     measuredFreqValue = 0
-    for i in range(5):
-        try:
-            measuredFreqValue = instrument.read()
-            measuredFreqValue = float(measuredFreqValue[:-1])
-            if 3 < measuredFreqValue < 4:
-                logger.info(f'Measured value: {measuredFreqValue}')
-                break
-            measuredFreqValue = 0
-        except:
-            time.sleep(2)
-    logger.info(f'Measured rtc: {measuredFreqValue}')
-    if measuredFreqValue == 0:
+    for i in range(2):
+        measuredFreqValue = instrument.read()
+        logger.debug(measuredFreqValue)
+        if 3.0 < measuredFreqValue and  measuredFreqValue < 5:
+            logger.info(f'Measured value: {measuredFreqValue}Hz')
+            sample.append(measuredFreqValue)
+        
+    if len(sample) == 0:
         exit('Error when get instrument data')
     
-    RtcCalibrationValue = ( ( (measuredFreqValue-4)/4) * 10**6 ) / 0.954
+    # CALCAULTE RTC GAIN
+    frequencyAverage = sum(sample)/len(sample)
+    logger.info(f'Measured rtc: {sample} -> Avg {frequencyAverage}Hz')
+    RtcCalibrationValue = ( ( (frequencyAverage-4)/4) * 10**6 ) / 0.954
     RtcCalibrationValue = int(RtcCalibrationValue)
-    logger.info(f'Set rtc calibration to: {RtcCalibrationValue}')
+    logger.info(f'Set rtc calibration from {meterSetupRegister.RTCCalibration.value} to: {RtcCalibrationValue}')
     meterSetupRegister.RTCCalibration.value = RtcCalibrationValue
     
     # CALCULATE NEW CRC from new configuration
@@ -363,6 +362,7 @@ if ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL):
     newCRC = calRunningCRC16(configurationData)
     meterSetupRegister.CRC.value = newCRC 
     
+    # SEND NEW METER SETUP
     df = meterSetupRegister.dataFrame() + ([0x00]*(109-meterSetupRegister.byteSize()))
     retryAttemp = 3
     isMeterSetupOK = False
@@ -390,6 +390,7 @@ if ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL):
                     break
             pass
     
+    # VERIFY DATA
     verifyData = ser_client.get_cosem_data(1, "0;128;96;14;81;255", 2)
     meterSetupRegister.extract(verifyData)
     ser_client.client_logout()
