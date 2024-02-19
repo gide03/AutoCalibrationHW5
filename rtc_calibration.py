@@ -82,7 +82,7 @@ class PendulumInstrument:
             time.sleep(0.1)    
 
     def read(self):        
-        response = self.selectedInstrument.query(':MEASure:FREQuency:BURSt?\n', 1)
+        response = self.selectedInstrument.query(':MEASure:FREQuency:BURSt?\n', 2)
         return float(response)
     
 class commSetting:
@@ -331,7 +331,7 @@ if ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL):
     for i in range(0, 1):
         logger.info('Apply 4 Hz')
         result = ser_client.set_cosem_data(1, '0;128;96;14;82;255', 2, 9, rtcCommand)
-    time.sleep(0.5) # give a moment for instrument
+    time.sleep(0.5) # give a moment for instrument to read frequency
     
     # READ FREQUENCY MEASUREMENT FROM INSTRUMENT
     sample = []
@@ -341,6 +341,8 @@ if ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL):
             measuredFreqValue = instrument.read()
             logger.debug(measuredFreqValue)
             if 3.0 < measuredFreqValue and  measuredFreqValue < 5:
+                if i == 0:  # in case the first measurement is invalid
+                    continue
                 logger.info(f'Measured value: {measuredFreqValue}Hz')
                 sample.append(measuredFreqValue)
                 
