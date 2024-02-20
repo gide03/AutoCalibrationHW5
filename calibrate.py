@@ -13,20 +13,25 @@ from lib.DLMS_Client.dlms_service.dlms_service import mechanism, CosemDataType
 from lib.DLMS_Client.DlmsCosemClient import DlmsCosemClient
 from lib.DLMS_Client.hdlc.hdlc_app import AddrSize
 
-from MeterSetup import MeterSetup
-from CalibrationData import CalibrationRegister
+from lib.Utils.MeterSetup import MeterSetup
+from lib.Utils.CalibrationData import CalibrationRegister
+
+import pickle
+import config
+from config import CosemList, GENY_USB_PORT, METER_USB_PORT, CalibrationParameter
 
 # Serial and geny portn configuration
-GENY_SLOT_INDEX = 3         # NOTE: Posisi meter pada slot geny test bench, ditihitung dari palig kiri 1, 2, 3
-ERROR_ACCEPTANCE = 0.4      # NOTE: Kriteria meter sukses dikalibrasi dalam persen
+GENY_SLOT_INDEX = CalibrationParameter.GENY_SLOT_INDEX        # NOTE: Posisi meter pada slot geny test bench, ditihitung dari palig kiri 1, 2, 3
+ERROR_ACCEPTANCE = CalibrationParameter.ERROR_ACCEPTANCE      # NOTE: Kriteria meter sukses dikalibrasi dalam persen
 GENY_USB_PORT = '/dev/ttyUSB2'
 METER_USB_PORT = '/dev/ttyUSB4'
 
-# Test bench nominal configuration
-PHASE_ANGLE_CONFIG = 60     # in Degree
-VOLTAGE_NOMINAL = 230       # in Volt
-CURRENT_NOMINAL = 30        # in Ampere
-BOOTING_TIME = 10            # in Second
+# Parameter configuration
+PHASE_ANGLE_CONFIG = CalibrationParameter.PHASE_ANGLE_CONFIG    # in Degree
+VOLTAGE_NOMINAL = CalibrationParameter.VOLTAGE_NOMINAL          # in Volt
+CURRENT_NOMINAL = CalibrationParameter.CURRENT_NOMINAL          # in Ampere
+BOOTING_TIME = CalibrationParameter.BOOTING_TIME                # in Second
+REBOOT_WAIT = CalibrationParameter.REBOOT_WAIT                  # in Second
 
 # Error relate to meter Vrms and Irms measurement
 VOLTAGE_ERROR_ACCEPTANCE = 30/100   # in Percent
@@ -86,6 +91,7 @@ class Calibration:
         self.gainValue = {} # refer to 0;128;96;14;80;255
         self.calibrationRegister = CalibrationRegister()
         self.meterSetupRegister = MeterSetup()
+        self.backupMeterSetup = MeterSetup()
 
         self.ser_client = DlmsCosemClient(
             port=self.comPort,
@@ -108,21 +114,34 @@ class Calibration:
         return lowerValue < measuredValue < upperValue
             
     def login(self):
-        for i in range(2):
-            loginResult = False
-            try:
-                logger.info('Login to meter')
-                loginResult = self.ser_client.client_login(Calibration.commSetting.AUTH_KEY, mechanism.HIGH_LEVEL)
-                logger.info(f'result login dlms - {loginResult}')
-                break
-            except Exception as e:
-                logger.warning(f'Failed to login, error message: {str(e)}')
-            if loginResult == False:
-                logger.critical(f'Could not connect to meter')        
+        loginResult = False
+        try:
+            logger.info('Login to meter')
+            loginResult = self.ser_client.client_login(Calibration.commSetting.AUTH_KEY, mechanism.HIGH_LEVEL)
+            logger.info(f'result login dlms - {loginResult}')
+            return True
+        except Exception as e:
+            logger.critical(f'Failed to login, error message: {str(e)}')
+            return False
     
     def logout(self):
         logger.info('Logout from meter')
         self.ser_client.client_logout()
+        
+    def eraseFlash(self):
+        resetResult = self.ser_client.set_cosem_data(1,'1;1;128;130;3;255',2,22,1)
+        print(f'reset flash result: {"SUCCESS" if resetResult==0 else "FAILED"}')
+        return resetResult
+    
+    def saveMeterSetup(self):
+        logger.info('reading meter setup')
+        data_read = self.ser_client.get_cosem_data(1, "0;128;96;14;81;255", 2)
+        if isinstance(data_read, str):
+            raise Exception(f'Fetch meter FAILED. Data result: {data_read}')
+        logger.debug(f'meter setup data: {data_read}')
+        with open('./RtcCalibBuffer.pkl', 'wb') as f:
+            self.backupMeterSetup.extract(data_read)
+            pickle.dump(self.backupMeterSetup, f)
     
     def syncClock(self):
         logger.info('Synchronize clock')
@@ -267,6 +286,10 @@ class Calibration:
         self.meterSetupRegister.MeterPowerSupplyType.value = 1
         self.meterSetupRegister.ServicesenseMode.value = 0
         self.meterSetupRegister.AnticreepConstant.value = 793
+        
+        # Apply RTC from buffer
+        logger.debug(f'Apply RTC Calibration data: {self.backupMeterSetup.RTCCalibration.value}')
+        self.meterSetupRegister.RTCCalibration.value = self.backupMeterSetup.RTCCalibration.value
         
         # Calculate new data frame
         configurationData = self.calibrationRegister.dataFrame()
@@ -557,11 +580,15 @@ def main():
     logger.addHandler(file_handler)
     logger.addHandler(console_handler)
     # End of LOGGER  Configuration
-    
+    logger.info('\n')
+    logger.info('='*30)
+    logger.info('STARTING CALIBRATION')
+    logger.info('='*30)
     logger.info('Initializing')
     logger.info('Configuring test bench')
     geny.close()
     time.sleep(3)
+    # TURN ON METER
     geny.open()
     geny.setMode(GenyTestBench.Mode.ENERGY_ERROR_CALIBRATION)
     geny.setPowerSelector(PowerSelector._3P4W_ACTIVE)
@@ -571,18 +598,51 @@ def main():
     geny.setVoltage(VOLTAGE_NOMINAL)
     geny.setCurrent(CURRENT_NOMINAL)
     geny.setCalibrationConstants(1000, 2)
-    logger.debug('APPLY CONFIGURATION')
+    logger.debug('TURN ON METER')
     geny.apply()
     logger.info(f'WAIT METER FOR BOOTING ({BOOTING_TIME} second)')    
     time.sleep(BOOTING_TIME)
     
-    logger.info('LOGIN TO METER') 
-    try:
-        meter.logout()
-    except:
-        pass
-    meter.login()
-    
+    # RESET FLASH
+    if not os.path.exists('./RtcCalibBuffer.pkl'):
+        logger.info('LOGIN TO METER') 
+        try:
+            meter.logout()
+        except:
+            pass
+        meter.login()
+        logger.info('Backup meter setup')
+        meter.saveMeterSetup()
+        logger.info('Reset flash')
+        meter.eraseFlash()
+        logger.info('Restarting meter')
+        geny.close()
+        time.sleep(REBOOT_WAIT)
+        
+        # TURN ON METER AGAIN
+        logger.info('TURN ON METER')
+        geny.apply()
+        logger.info(f'WAIT METER FOR BOOTING ({BOOTING_TIME} second)')    
+        time.sleep(BOOTING_TIME)
+        try:
+            meter.logout()
+        except:
+            pass
+        logger.info('LOGIN TO METER')     
+        if not meter.login():
+            geny.close()
+            exit()
+    else:
+        logger.info('Found buffer file')
+        with open('./RtcCalibBuffer.pkl', 'rb') as f:
+            meter.backupMeterSetup = pickle.load(f)
+            logger.info('Found buffer file')
+            registers = vars(meter.backupMeterSetup)
+            for regName in registers:
+                register = registers[regName]
+                logger.info(f'{regName}: {register.value}')
+            logger.info('Skip erase flash')
+
     # STEP 1: Reading firmware version
     logger.info('Reading fw version')
     fwVersion = meter.ser_client.get_cosem_data(1, '1;0;0;2;0;255', 2)
@@ -594,64 +654,82 @@ def main():
             
     # STEP 2: Configure LED setup
     logger.info('Setup LED1')
-    led1_setResult = meter.ser_client.set_cosem_data(1, '0;128;96;6;8;255', 2, 2, [
-        [CosemDataType.e_DOUBLE_LONG_UNSIGNED, 0], # <UInt32 Value="0" />
-        [CosemDataType.e_LONG_UNSIGNED, 10], # <UInt16 Value="10" />
-        [CosemDataType.e_LONG_UNSIGNED, 11520], # <UInt16 Value="11520" />
-        [CosemDataType.e_LONG_UNSIGNED, 11520], # <UInt16 Value="11520" />
-        [CosemDataType.e_ENUM, 4],# <Enum Value="4" />
-        [CosemDataType.e_ENUM, 3],# <Enum Value="3" />
-        [CosemDataType.e_ENUM, 2],# <Enum Value="2" />
-        [CosemDataType.e_ENUM, 1]# <Enum Value="1" />
-    ])
+    led1ConfigValue = [       
+        [CosemDataType.e_LONG_UNSIGNED, 10],
+        [CosemDataType.e_LONG_UNSIGNED, 11520],
+        [CosemDataType.e_LONG_UNSIGNED, 11520],
+        [CosemDataType.e_ENUM, 4],
+        [CosemDataType.e_ENUM, 3],
+        [CosemDataType.e_ENUM, 2],
+        [CosemDataType.e_ENUM, 0],
+        [CosemDataType.e_ENUM, 1],
+        [CosemDataType.e_ENUM, 0],
+        [CosemDataType.e_ENUM, 0],
+        [CosemDataType.e_ENUM, 1],
+        [CosemDataType.e_LONG_UNSIGNED, 0],
+        
+    ]
+    logger.info(f'LED1 Config Value: {led1ConfigValue}')
+    led1_setResult = meter.ser_client.set_cosem_data(1, '0;128;96;6;8;255', 2, 2, led1ConfigValue)
     logger.info(f'Result: {led1_setResult}')
     
     logger.info('Setup LED2')
-    led2_setResult = meter.ser_client.set_cosem_data(1, '0;128;96;6;20;255', 2, 2, [
-        [CosemDataType.e_DOUBLE_LONG_UNSIGNED, 0], # <UInt32 Value="0" />
-        [CosemDataType.e_LONG_UNSIGNED, 10], # <UInt16 Value="10" />
-        [CosemDataType.e_LONG_UNSIGNED, 11520], # <UInt16 Value="11520" />
-        [CosemDataType.e_LONG_UNSIGNED, 11520], # <UInt16 Value="11520" />
-        [CosemDataType.e_ENUM, 4],# <Enum Value="4" />
-        [CosemDataType.e_ENUM, 3],# <Enum Value="3" />
-        [CosemDataType.e_ENUM, 1],# <Enum Value="1" />
-        [CosemDataType.e_ENUM, 1]# <Enum Value="1" />
-    ])  
+    led2ConfigValue = [
+        [CosemDataType.e_LONG_UNSIGNED, 10],
+        [CosemDataType.e_LONG_UNSIGNED, 11520],
+        [CosemDataType.e_LONG_UNSIGNED, 11520],
+        [CosemDataType.e_ENUM, 4],
+        [CosemDataType.e_ENUM, 3],
+        [CosemDataType.e_ENUM, 1],
+        [CosemDataType.e_ENUM, 0],
+        [CosemDataType.e_ENUM, 1],
+        [CosemDataType.e_ENUM, 0],
+        [CosemDataType.e_ENUM, 0],
+        [CosemDataType.e_ENUM, 1],
+        [CosemDataType.e_LONG_UNSIGNED, 0],
+    ]
+    logger.info(f'LED2 Config Value: {led2ConfigValue}')
+    led2_setResult = meter.ser_client.set_cosem_data(1, '0;128;96;6;20;255', 2, 2, led2ConfigValue)  
     logger.info(f'Result: {led2_setResult}')  
     
     # STEP 3: Configure KYZ
-    logger.info('Set KYZ')
+    logger.info('Configure KYZ to make sure the KYZ status is 0')
     kyz_cosem = (
     '0;128;96;6;23;255',
     '0;128;96;6;24;255',
     '0;128;96;6;25;255'
     )
     kyz_dtype = (
+        CosemDataType.e_LONG_UNSIGNED,
+        CosemDataType.e_LONG_UNSIGNED,
+        CosemDataType.e_LONG_UNSIGNED,
         CosemDataType.e_ENUM,
         CosemDataType.e_ENUM,
-        CosemDataType.e_FLOAT32,
+        CosemDataType.e_ENUM,
         CosemDataType.e_ENUM,
         CosemDataType.e_ENUM,
         CosemDataType.e_ENUM,
         CosemDataType.e_ENUM,
         CosemDataType.e_ENUM,
         CosemDataType.e_LONG_UNSIGNED,
-        CosemDataType.e_LONG_UNSIGNED,
-        CosemDataType.e_DOUBLE_LONG_UNSIGNED
     )
     for kyz in kyz_cosem:
+        logger.info(f'Configure {kyz}')
         kyzData = []
+        logger.info(f'Read {kyz}')
         readData = meter.ser_client.get_cosem_data(1, kyz, 2)
-        logger.info(f'Data read of {kyz} -- {readData}')
+        logger.info(f'Read result -- {readData}')
+        if readData[-2] == 0:
+            logger.info('Skip configuration because the status already 0')
+            continue
+        readData[-2] = 0
         for idx, (data,dtype) in enumerate(zip(readData, kyz_dtype)):
             temp = [dtype,data]
-            if idx == 1:
-                temp = [dtype, 0]
             kyzData.append(temp)
             
         logger.info(f'Data will be set: {kyzData}')
         result = meter.ser_client.set_cosem_data(1, kyz, 2, 2, kyzData)
-        logger.info(f'Set esult: {result}')
+        logger.info(f'Set result: {result}')
     
     # STEP 4: Configure meter setup
     # NOTE: Length of meter setup not match (101 Bytes instead of 109 Bytes). There is CRC that need to be update. Currently using hardcoded configuration from HW5+ software
@@ -718,6 +796,10 @@ def main():
 
     # STEP 9: 
     logger.info('FINISHING')
+    if os.path.exists('./RtcCalibBuffer.pkl'):
+        logger.debug('Removing buffer file')
+        os.remove('./RtcCalibBuffer.pkl')
+    
     meter.syncClock()
     logger.debug('Logout from meter')
     meter.logout()

@@ -13,11 +13,15 @@ class commSetting:
     IS_RLRQ_PROTECTED = True
 
 class CalibrationParameter:    
+    GENY_SLOT_INDEX = 3         # NOTE: Posisi meter pada slot geny test bench, ditihitung dari palig kiri 1, 2, 3
+    ERROR_ACCEPTANCE = 0.4      # NOTE: Kriteria meter sukses dikalibrasi dalam persen
+    
     # Test bench nominal configuration
     PHASE_ANGLE_CONFIG = 60     # in Degree
     VOLTAGE_NOMINAL = 230       # in Volt
     CURRENT_NOMINAL = 30        # in Ampere
     BOOTING_TIME = 10           # in Second. waiting time for boot start from geny is turned on
+    REBOOT_WAIT = 10             # in Second. Waiting time for reboot
     
     # Error tolrance relate to meter Vrms and Irms measurement
     VOLTAGE_ERROR_ACCEPTANCE = 30/100   # in Percent
