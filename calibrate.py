@@ -380,7 +380,7 @@ class Calibration:
         for idx,target in enumerate(targets):
             #TODO: New Gain = (Previous Gain * Referensi Geny) / Average Instant Vrms    
             instanRegister = target[0]
-            meterMeasurement = self.fetch_register(instanRegister, numOfSample=5) - (120*idx)
+            meterMeasurement = self.fetch_register(instanRegister, numOfSample=2) - (120*idx)
             prevGain = target[1].value
             genyFeedback = target[2]
             
@@ -412,7 +412,7 @@ class Calibration:
         for target in targets:
             #TODO: New Gain = (Previous Gain * Referensi Geny) / Average Instant Vrms    
             instanRegister = target[0]
-            meterMeasurement = self.fetch_register(instanRegister, numOfSample=5)
+            meterMeasurement = self.fetch_register(instanRegister, numOfSample=2)
             prevGain = target[1].value
             genyFeedback = target[2]
             
@@ -603,27 +603,42 @@ def main():
     logger.info(f'WAIT METER FOR BOOTING ({BOOTING_TIME} second)')    
     time.sleep(BOOTING_TIME)
     
+    logger.info('LOGIN TO METER') 
+    try:
+        meter.logout()
+    except:
+        pass
+    if not meter.login():
+        logger.info('Could not login to meter')
+        geny.close()
+        exit()
+        
+    # STEP 1: Reading firmware version
+    logger.info('Reading fw version')
+    fwVersion = meter.ser_client.get_cosem_data(1, '1;0;0;2;0;255', 2)
+    if type(fwVersion) == str:
+        logger.critical(f'Error while get fw version. Read result: {fwVersion}')
+        geny.close()
+        exit(1)
+    logger.info(f'Firmware Version: {bytes(fwVersion).decode("utf-8")}')
+    
     # RESET FLASH
     if not os.path.exists('./RtcCalibBuffer.pkl'):
-        logger.info('LOGIN TO METER') 
-        try:
-            meter.logout()
-        except:
-            pass
-        meter.login()
         logger.info('Backup meter setup')
         meter.saveMeterSetup()
-        logger.info('Reset flash')
+        logger.info('Erase flash')
         meter.eraseFlash()
         logger.info('Restarting meter')
         geny.close()
+        logger.info(f'Test bench turned off, take a breath {REBOOT_WAIT}s')
         time.sleep(REBOOT_WAIT)
         
         # TURN ON METER AGAIN
         logger.info('TURN ON METER')
+        geny.open()
         geny.apply()
         logger.info(f'WAIT METER FOR BOOTING ({BOOTING_TIME} second)')    
-        time.sleep(BOOTING_TIME)
+        time.sleep(BOOTING_TIME+5)
         try:
             meter.logout()
         except:
@@ -633,24 +648,20 @@ def main():
             geny.close()
             exit()
     else:
-        logger.info('Found buffer file')
+        logger.info('Found meter setup buffer file, skip meter setup fetch')
         with open('./RtcCalibBuffer.pkl', 'rb') as f:
             meter.backupMeterSetup = pickle.load(f)
-            logger.info('Found buffer file')
             registers = vars(meter.backupMeterSetup)
+            logger.info('='*30)
+            logger.info('READ BUFFER FILE')
+            logger.info('='*30)
             for regName in registers:
                 register = registers[regName]
                 logger.info(f'{regName}: {register.value}')
-            logger.info('Skip erase flash')
-
-    # STEP 1: Reading firmware version
-    logger.info('Reading fw version')
-    fwVersion = meter.ser_client.get_cosem_data(1, '1;0;0;2;0;255', 2)
-    if type(fwVersion) == str:
-        logger.critical(f'Error while get fw version. Read result: {fwVersion}')
-        geny.close()
-        exit(1)
-    logger.info(f'Firmware Version: {bytes(fwVersion).decode("utf-8")}')
+            logger.info('='*30)
+            
+            logger.info('Erase flash')
+            meter.eraseFlash()
             
     # STEP 2: Configure LED setup
     logger.info('Setup LED1')

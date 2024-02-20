@@ -1,5 +1,5 @@
-METER_USB_PORT  = 'COM4'
-GENY_USB_PORT   = 'COM2'    # only used when calibrating error energy
+METER_USB_PORT  = '/dev/ttyUSB2'
+GENY_USB_PORT   = '/dev/ttyUSB4'    # only used when calibrating error energy
 
 class commSetting:
     METER_ADDR = 100
