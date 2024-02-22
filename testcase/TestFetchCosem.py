@@ -8,6 +8,10 @@ def fetch(dlmsClient:DlmsCosemClient, cosemObject:CosemObject, att:int):
     logger.debug(f'Fetching {cosemObject.objectName}')
     result = dlmsClient.get_cosem_data(cosemObject.classId, cosemObject.obis, att)
     logger.debug(f'Result: {result}')
+    if isinstance(result, str):
+        logger.critical(f'FAILED TO FETCH {cosemObject.objectName} att.{att}')
+        dlmsClient.client_logout()
+        exit(1)
     return result
 
 if __name__ == '__main__':
