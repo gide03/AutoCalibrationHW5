@@ -2,18 +2,24 @@ import os
 import logging
 import serial
 import pathlib
+import argparse
 from datetime import datetime
-
 CURRENT_PATH = pathlib.Path(__file__).parent.absolute()
+parser = argparse.ArgumentParser(description="Checking battery voltage and synchronize meter clock. If you didn't pass parameter, configuration will taken from config.py")
+parser.add_argument('-p', '--meterport', type=str, help='Communication port for meter.')
+# parser.add_argument('-g', '--genyport', type=str, help='Communication port for geny.')
+args = parser.parse_args()
 
-from config import commSetting, CosemList, METER_USB_PORT
 
+import config
 from lib.DLMS_Client.dlms_service.dlms_service import mechanism
 from lib.DLMS_Client.DlmsCosemClient import DlmsCosemClient
-from lib.Utils.MeterSetup import MeterSetup
-from lib.Utils.CalibrationData import CalibrationRegister
-
 from testcase import TestFetchCosem
+
+
+METER_USB_PORT = config.METER_USB_PORT
+if args.meterport != None:
+    METER_USB_PORT = args.meterport
 
 if not os.path.exists(f'{CURRENT_PATH}/logs'):
     os.mkdir(f'{CURRENT_PATH}/logs')
@@ -57,16 +63,16 @@ ser_client = DlmsCosemClient(
     timeout=0.05,
     inactivity_timeout=10,
     login_retry=1,
-    meter_addr=commSetting.METER_ADDR,
-    client_nb=commSetting.CLIENT_NUMBER,
+    meter_addr=config.commSetting.METER_ADDR,
+    client_nb=config.commSetting.CLIENT_NUMBER,
 )
 
 # list cosem will be access
-cosem_batteryLevel = CosemList.BatteryVoltage
-cosem_clock = CosemList.Clock
+cosem_batteryLevel = config.CosemList.BatteryVoltage
+cosem_clock = config.CosemList.Clock
 
 logger.info('Login to meter')
-if ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL):
+if ser_client.client_login(config.commSetting.AUTH_KEY, mechanism.HIGH_LEVEL):
     # TODO: Read battery voltage
     logger.info(f'Fetch battery level')
     batteryLevel = TestFetchCosem.fetch(ser_client, cosem_batteryLevel, 2)    

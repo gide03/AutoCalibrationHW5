@@ -5,7 +5,12 @@ import pathlib
 import os
 import math
 from datetime import datetime
+import argparse
 CURRENT_PATH = pathlib.Path(__file__).parent.absolute()
+parser = argparse.ArgumentParser(description="Energy Calibration. If you didn't add parameter, configuration will taken from config.py")
+parser.add_argument('-p', '--meterport', type=str, help='Communication port for meter.')
+parser.add_argument('-g', '--genyport', type=str, help='Communication port for geny.')
+args = parser.parse_args()
 
 from lib.GenyTestBench.GenyUtil import ElementSelector, PowerSelector, VoltageRange
 from lib.GenyTestBench.GenyTestBench import GenyTestBench
@@ -20,11 +25,17 @@ import pickle
 import config
 from config import CosemList, GENY_USB_PORT, METER_USB_PORT, CalibrationParameter
 
+
 # Serial and geny portn configuration
 GENY_SLOT_INDEX = CalibrationParameter.GENY_SLOT_INDEX        # NOTE: Posisi meter pada slot geny test bench, ditihitung dari palig kiri 1, 2, 3
 ERROR_ACCEPTANCE = CalibrationParameter.ERROR_ACCEPTANCE      # NOTE: Kriteria meter sukses dikalibrasi dalam persen
-GENY_USB_PORT = '/dev/ttyUSB2'
-METER_USB_PORT = '/dev/ttyUSB4'
+GENY_USB_PORT = config.GENY_USB_PORT
+METER_USB_PORT = config.METER_USB_PORT
+if args.meterport != None:
+    METER_USB_PORT = args.meterport
+if args.genyport != None:
+    GENY_USB_PORT = args.genyport
+
 
 # Parameter configuration
 PHASE_ANGLE_CONFIG = CalibrationParameter.PHASE_ANGLE_CONFIG    # in Degree

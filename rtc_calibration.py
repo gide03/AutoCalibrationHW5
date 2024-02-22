@@ -6,7 +6,7 @@ import pathlib
 import time
 import argparse
 CURRENT_PATH = pathlib.Path(__file__).parent.absolute()
-parser = argparse.ArgumentParser(description='HW5.0 Flash erase. You could conigure this environment at config.py')
+parser = argparse.ArgumentParser(description='RTC Calibration')
 parser.add_argument('-p', '--meterport', type=str, help='Communication port for meter.')
 parser.add_argument('-t', '--threshold', type=str, help='PPM acceptance threshold (plus minus).')
 args = parser.parse_args()
@@ -21,7 +21,7 @@ from lib.Utils.CalibrationData import CalibrationRegister
 METER_USB_PORT = config.METER_USB_PORT
 PPM_TRHESHOLD_OK = 50
 if args.meterport != None:
-    METER_USB_PORT = parser.meterport
+    METER_USB_PORT = args.meterport
 if args.threshold != None:
     PPM_TRHESHOLD_OK = args.threshold
 
@@ -57,28 +57,27 @@ class FrequencyCounterInstrument:
     INIT_COMMAND_KEYSIGHT = (
         "*RST\n",
         "*CLS\n",
-        # ":INP:IMP 1E6\n",
-        # ":INP:LEV:AUTO ON\n",
         ":INP:COUP DC\n",
-        # ":INP:NREJ ON\n"
-        # ":INP2:IMP 1E6\n",
+        ":INP:NREJ ON\n"
+        # ":INP:LEV:AUTO ON\n",
+        # ":INP:IMP 1E6\n",
         # ":INP2:LEV:AUTO ON\n",
+        # ":INP2:IMP 1E6\n",
         # ":INP2:COUP DC\n",
     )
     
     INIT_COMMAND_PENDULUM = (
         "*RST\n",
         "*CLS\n",
+        ":INP:LEV:AUTO ON\n",
         ":INP:COUP DC\n",
+        ":INP:IMP 1E6\n",
     )
-    # *IDN?\n
-    
+        
     def __init__(self):
         self.rm = visa.ResourceManager()
-        print('searching instrument')
+        self.initCommand = None
         self.instrument_list = self.rm.list_resources()
-        # print(f'instrument list: {self.instrument_list}')
-        
         self.selectedInstrument = ''
         for instrument in self.instrument_list:
             if 'USB' in instrument:
@@ -88,21 +87,23 @@ class FrequencyCounterInstrument:
                 break
         if self.selectedInstrument == '':
             raise Exception('No instrument detected. Please check the connection')
-        # instrument_info = rm.resource_info('USB0::0x14EB::0x0090::389645::INSTR')
-        # self.instrument = self.rm.open_resource('USB0::0x14EB::0x0090::389645::INSTR')
-        # print(instrument_info)
-        # self.sendInit()
+        self.manufacturer = self.selectedInstrument.query('*IDN?')
+        if "PENDULUM" in self.manufacturer:
+            print(f'Using PENDULUM frequency counter')
+            self.initCommand = self.INIT_COMMAND_PENDULUM
+        elif "KEYSIGHT" in self.manufacturer:
+            self.initCommand = self.INIT_COMMAND_KEYSIGHT
+            print(f'Using KEYSIGHT frequency counter')
         
-    
     def sendInit(self):
-        for data in self.INIT_COMMAND:
+        for data in self.initCommand:
+            print(f'Send {data}')
             self.selectedInstrument.write(data)
-            time.sleep(0.1)    
+            time.sleep(0.1)
 
     def read(self):
         self.selectedInstrument.write('*CLS\n')
         response = self.selectedInstrument.query('MEASure:FREQuency?', delay=2)
-        # print(f'read response: {response}')
         return float(response)
     
 class commSetting:
@@ -118,8 +119,7 @@ class commSetting:
 
 logger.info('Init Instrument')
 instrument = FrequencyCounterInstrument()
-
-exit()
+instrument.sendInit()
 logger.info('Init Dlms Client')
 calibrationRegister = CalibrationRegister()
 meterSetupRegister = MeterSetup()
@@ -206,7 +206,7 @@ if ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL):
             logger.info('Apply 4 Hz')
             result = ser_client.set_cosem_data(1, '0;128;96;14;82;255', 2, 9, rtcCommand)
         # time.sleep(0.5) # give a moment for instrument to read frequency
-        # instrument.sendInit()
+        instrument.sendInit()
         
         # READ FREQUENCY MEASUREMENT FROM INSTRUMENT
         sample = []
