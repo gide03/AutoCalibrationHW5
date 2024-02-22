@@ -42,6 +42,8 @@ class CosemList(CosemObject):
     CalibarationData = CosemObject('CalibrationData', '0;128;96;14;80;255', 1)
     MeterSetup = CosemObject('MeterSetup', '0;128;96;14;81;255', 1)
     FlashErase = CosemObject('FlashErase', '1;1;128;130;3;255', 1)
+    BatteryVoltage = CosemObject('BatteryVoltage', '1;1;128;130;4;255', 3)
+    Clock = CosemObject('Clock', '0;0;1;0;0;255', 8)
     
     InstantVoltagePhase1 = CosemObject('InstantVoltagePhase1', "1;0;32;7;0;255", 3)
     InstantVoltagePhase2 = CosemObject('InstantVoltagePhase2', "1;0;52;7;0;255", 3)
