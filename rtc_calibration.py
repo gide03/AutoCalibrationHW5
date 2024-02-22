@@ -4,17 +4,26 @@ import logging
 import serial
 import pathlib
 import time
-
+import argparse
 CURRENT_PATH = pathlib.Path(__file__).parent.absolute()
+parser = argparse.ArgumentParser(description='HW5.0 Flash erase. You could conigure this environment at config.py')
+parser.add_argument('-p', '--meterport', type=str, help='Communication port for meter.')
+parser.add_argument('-t', '--threshold', type=str, help='PPM acceptance threshold (plus minus).')
+args = parser.parse_args()
 
+import config
 from lib.DLMS_Client.dlms_service.dlms_service import mechanism
 from lib.DLMS_Client.DlmsCosemClient import DlmsCosemClient
 from lib.Utils.MeterSetup import MeterSetup
 from lib.Utils.CalibrationData import CalibrationRegister
 
 
-METER_USB_PORT = "com4"
-
+METER_USB_PORT = config.METER_USB_PORT
+PPM_TRHESHOLD_OK = 50
+if args.meterport != None:
+    METER_USB_PORT = parser.meterport
+if args.threshold != None:
+    PPM_TRHESHOLD_OK = args.threshold
 
 if not os.path.exists(f'{CURRENT_PATH}/logs'):
     os.mkdir(f'{CURRENT_PATH}/logs')
@@ -45,17 +54,24 @@ logger.addHandler(console_handler)
 # End of LOGGER  Configuration
 
 class FrequencyCounterInstrument:
-    INIT_COMMAND = (
-        "*RST\n"
-        "*CLS\n"
+    INIT_COMMAND_KEYSIGHT = (
+        "*RST\n",
+        "*CLS\n",
         # ":INP:IMP 1E6\n",
         # ":INP:LEV:AUTO ON\n",
         ":INP:COUP DC\n",
-        ":INP:NREJ ON\n"
+        # ":INP:NREJ ON\n"
         # ":INP2:IMP 1E6\n",
         # ":INP2:LEV:AUTO ON\n",
         # ":INP2:COUP DC\n",
     )
+    
+    INIT_COMMAND_PENDULUM = (
+        "*RST\n",
+        "*CLS\n",
+        ":INP:COUP DC\n",
+    )
+    # *IDN?\n
     
     def __init__(self):
         self.rm = visa.ResourceManager()
@@ -102,6 +118,8 @@ class commSetting:
 
 logger.info('Init Instrument')
 instrument = FrequencyCounterInstrument()
+
+exit()
 logger.info('Init Dlms Client')
 calibrationRegister = CalibrationRegister()
 meterSetupRegister = MeterSetup()
@@ -188,7 +206,7 @@ if ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL):
             logger.info('Apply 4 Hz')
             result = ser_client.set_cosem_data(1, '0;128;96;14;82;255', 2, 9, rtcCommand)
         # time.sleep(0.5) # give a moment for instrument to read frequency
-        instrument.sendInit()
+        # instrument.sendInit()
         
         # READ FREQUENCY MEASUREMENT FROM INSTRUMENT
         sample = []
@@ -219,7 +237,7 @@ if ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL):
         RtcCalibrationValue = int(RtcCalibrationValue)
         logger.debug(f'Calculate RTC Calibration Value: {RtcCalibrationValue}')
         
-        if -50 <= RtcCalibrationValue and RtcCalibrationValue <= 50:
+        if (-1*PPM_TRHESHOLD_OK) <= RtcCalibrationValue and RtcCalibrationValue <= PPM_TRHESHOLD_OK:
             logger.info(f'Set rtc calibration from {meterSetupRegister.RTCCalibration.value} to: {RtcCalibrationValue}')
             break
         logger.debug(f'PPM not acceptable, Recalculate')

@@ -6,7 +6,7 @@ from datetime import datetime
 
 CURRENT_PATH = pathlib.Path(__file__).parent.absolute()
 
-from config import commSetting, CosemList
+from config import commSetting, CosemList, METER_USB_PORT
 
 from lib.DLMS_Client.dlms_service.dlms_service import mechanism
 from lib.DLMS_Client.DlmsCosemClient import DlmsCosemClient
@@ -14,10 +14,6 @@ from lib.Utils.MeterSetup import MeterSetup
 from lib.Utils.CalibrationData import CalibrationRegister
 
 from testcase import TestFetchCosem
-
-
-METER_USB_PORT = "com4"
-
 
 if not os.path.exists(f'{CURRENT_PATH}/logs'):
     os.mkdir(f'{CURRENT_PATH}/logs')

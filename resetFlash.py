@@ -2,14 +2,21 @@ import os
 import logging
 import serial
 import pathlib
-import sys
+import argparse
 CURRENT_PATH = pathlib.Path(__file__).parent.absolute()
+parser = argparse.ArgumentParser(description='HW5.0 Flash erase. You could conigure this environment at config.py')
+parser.add_argument('-p', '--meterport', type=str, help='Communication port for meter.')
+# parser.add_argument('-g', '--genyport', type=str, help='communication port for geny')
+args = parser.parse_args()
 
+import config
 from datetime import datetime, timedelta
 from lib.DLMS_Client.dlms_service.dlms_service import CosemDataType, mechanism
 from lib.DLMS_Client.DlmsCosemClient import DlmsCosemClient, TransportSec
 
-METER_USB_PORT = "COM18"
+METER_USB_PORT = config.METER_USB_PORT
+if args.meterport != None:
+    METER_USB_PORT = args.meterport
 
 class commSetting:
     METER_ADDR = 100
