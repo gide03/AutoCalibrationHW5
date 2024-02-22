@@ -119,7 +119,6 @@ class commSetting:
 
 logger.info('Init Instrument')
 instrument = FrequencyCounterInstrument()
-instrument.sendInit()
 logger.info('Init Dlms Client')
 calibrationRegister = CalibrationRegister()
 meterSetupRegister = MeterSetup()
