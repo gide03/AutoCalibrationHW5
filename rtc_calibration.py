@@ -219,7 +219,7 @@ if ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL):
         RtcCalibrationValue = int(RtcCalibrationValue)
         logger.debug(f'Calculate RTC Calibration Value: {RtcCalibrationValue}')
         
-        if RtcCalibrationValue < 50:
+        if -50 <= RtcCalibrationValue and RtcCalibrationValue <= 50:
             logger.info(f'Set rtc calibration from {meterSetupRegister.RTCCalibration.value} to: {RtcCalibrationValue}')
             break
         logger.debug(f'PPM not acceptable, Recalculate')
