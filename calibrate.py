@@ -249,7 +249,6 @@ class Calibration:
             try:
                 logger.debug(f'try to send data calibration. Attemp {i+1} of {retry}')
                 logger.debug(f'data: {calibrationBuffer}')
-                # calibrationBuffer = self.calibrationRegister.dataFrame()
                 result = self.ser_client.set_cosem_data(
                     class_id=mCosem.classId,
                     obis_code=mCosem.obis,
@@ -258,7 +257,8 @@ class Calibration:
                     value=calibrationBuffer
                 )
                 logger.info(f'Result: {result}')
-                return result
+                calData = self.ser_client.get_cosem_data(mCosem.classId, mCosem.obis, 2)
+                return True if calData==calibrationBuffer else False
             except: # Handler for fw v7.62. The meter is going restart after set calibration data but the data is changed. Check if the value was changed, if not retry set.
                 if i < retry-1:
                     logger.warning(f'timeout. Data sent: {calibrationBuffer}')
@@ -699,7 +699,6 @@ def main():
     '''
     meter.fetch_calibration_data()
     meter.fetch_meter_setup()
-    print(meter.meterSetupRegister.CRC.value)
     IsCalibrated = False
     
     if not FORCE_CALIBRATE:
@@ -881,7 +880,7 @@ def main():
         meter.write_calibration_data(dataCalibration)
         time.sleep(1)
         
-    logger.info('Calculating power active error')
+    logger.info(f'Calculating power active error. Error is acceptable if less than plus minus {ERROR_ACCEPTANCE}%')
     while True:
         readBackRegisters = geny.readBackSamplingData()
         if validateGeny(readBackRegisters):
@@ -896,21 +895,26 @@ def main():
         readBackRegisters.PowerActive_B,
         readBackRegisters.PowerActive_C
     )
+    isPassed = []
     for instantRegister, referenceRegister in zip(instantPowerActive, reference):
         instantValue = meter.fetch_register(instantRegister) 
         error = ((referenceRegister.value - instantValue) / referenceRegister.value) * 100
-        logger.info(f'{instantRegister.name} meter measure: {instantRegister.value:.4f}, reference: {referenceRegister.value:.4f} error: {error:.5f}%')
+        logger.info(f'{instantRegister.name} meter measure: {instantRegister.value:.4f}, reference: {referenceRegister.value:.4f} error: {error:.5f}% ({"PASSED" if (-1*ERROR_ACCEPTANCE)<error<ERROR_ACCEPTANCE else "REJECT"})')
+        isPassed.append((-1*ERROR_ACCEPTANCE)<error<ERROR_ACCEPTANCE)
 
     # STEP 11: 
     logger.info('STEP 11: FINISHING')
     
-    if not IsCalibrated:
+    if not IsCalibrated and all(isPassed):
+        logger.info('Calibration SUCCESS')
         logger.info('Store calibration values')
         meter.fetch_calibration_data()
         meter.fetch_meter_setup()
         meter.saveMeterSetup(dataMeterSetup)
         meter.saveCalibrationData(dataCalibration)
-        
+    else:
+        logger.info('FAILED accuracy exceed threshold')
+    
     # meter.syncClock()
     logger.debug('Logout from meter')
     meter.logout()
