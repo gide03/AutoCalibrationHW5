@@ -118,11 +118,12 @@ class Register:
         return mReturn[0]
 
 class RegisterWrapper:
-    def info(self):
+    def info(self, verbose=False):
         objectList = vars(self)
-        print('============== REGISTER INFO ==============')
-        for regName in objectList:
-            print(f'{regName}: {objectList[regName].value}')
+        if verbose:
+            print('============== REGISTER INFO ==============')
+            for regName in objectList:
+                print(f'{regName}: {objectList[regName].value}')
         return vars(self)
     
     def byteSize(self)->int:
