@@ -10,6 +10,7 @@ CURRENT_PATH = pathlib.Path(__file__).parent.absolute()
 parser = argparse.ArgumentParser(description="Energy Calibration. If you didn't add parameter, configuration will taken from config.py")
 parser.add_argument('-p', '--meterport', type=str, help='Communication port for meter.')
 parser.add_argument('-g', '--genyport', type=str, help='Communication port for geny.')
+parser.add_argument('-f', action='store_true', help='Flag to force calibrate')
 args = parser.parse_args()
 
 from lib.GenyTestBench.GenyUtil import ElementSelector, PowerSelector, VoltageRange
@@ -31,11 +32,14 @@ GENY_SLOT_INDEX = CalibrationParameter.GENY_SLOT_INDEX        # NOTE: Posisi met
 ERROR_ACCEPTANCE = CalibrationParameter.ERROR_ACCEPTANCE      # NOTE: Kriteria meter sukses dikalibrasi dalam persen
 GENY_USB_PORT = config.GENY_USB_PORT
 METER_USB_PORT = config.METER_USB_PORT
+
+FORCE_CALIBRATE = False
 if args.meterport != None:
     METER_USB_PORT = args.meterport
 if args.genyport != None:
     GENY_USB_PORT = args.genyport
-
+if args.f:
+    FORCE_CALIBRATE = True
 
 # Parameter configuration
 PHASE_ANGLE_CONFIG = CalibrationParameter.PHASE_ANGLE_CONFIG    # in Degree
@@ -147,25 +151,12 @@ class Calibration:
         return resetResult
 
     def saveCalibrationData(self, filepath):
-        logger.info('reading calibration data')
-        mCosem = config.CosemList.CalibarationData
-        data_read = self.ser_client.get_cosem_data(mCosem.classId, mCosem.obis, 2)
-        if isinstance(data_read, str):
-            raise Exception(f'Fetch meter FAILED. Data result: {data_read}')
-        logger.debug(f'calibration data: {data_read}')
         with open(filepath, 'wb') as f:
-            self.backupMeterSetup.extract(data_read)
-            pickle.dump(self.backupMeterSetup, f)
+            pickle.dump(self.calibrationRegister, f)
     
     def saveMeterSetup(self, filepath):
-        logger.info('reading meter setup')
-        data_read = self.ser_client.get_cosem_data(1, "0;128;96;14;81;255", 2)
-        if isinstance(data_read, str):
-            raise Exception(f'Fetch meter FAILED. Data result: {data_read}')
-        logger.debug(f'meter setup data: {data_read}')
         with open(filepath, 'wb') as f:
-            self.backupMeterSetup.extract(data_read)
-            pickle.dump(self.backupMeterSetup, f)
+            pickle.dump(self.meterSetupRegister, f)
     
     def syncClock(self):
         logger.info('Synchronize clock')
@@ -228,7 +219,9 @@ class Calibration:
                 
     def fetch_calibration_data(self, verbose = False):
         logger.info('read calibration data')
-        data_read = self.ser_client.get_cosem_data(1, "0;128;96;14;80;255", 2)  
+        mCosem = config.CosemList.CalibarationData
+        data_read = self.ser_client.get_cosem_data(mCosem.classId, mCosem.obis, 2)
+        logger.debug(f'calibration data read: {data_read}')
         self.calibrationRegister.extract(data_read)
         if verbose == True:
             self.calibrationRegister.info()
@@ -241,12 +234,13 @@ class Calibration:
                 logger.debug(f'filepath: {filepath}')
                 with open(filepath, 'rb') as f:
                     buffer = pickle.load(f)
-                    self.calibrationRegister.extract(buffer)
+                    self.calibrationRegister = buffer
                     # print out the register to logfile
                     logger.info('#'*30)
                     logger.info('calibration value:')
-                    for register in self.calibrationRegister.info():
-                        logger.info(f'{register}: {self.calibrationRegister[register]}')
+                    _registers = self.calibrationRegister.info()
+                    for register in _registers:
+                        logger.info(f'{register}: {_registers[register].value}')
                     logger.info('#'*30)
         
         mCosem = config.CosemList.CalibarationData
@@ -254,6 +248,7 @@ class Calibration:
         for i in range(retry):
             try:
                 logger.debug(f'try to send data calibration. Attemp {i+1} of {retry}')
+                logger.debug(f'data: {calibrationBuffer}')
                 # calibrationBuffer = self.calibrationRegister.dataFrame()
                 result = self.ser_client.set_cosem_data(
                     class_id=mCosem.classId,
@@ -262,8 +257,7 @@ class Calibration:
                     dtype=CosemDataType.e_OCTET_STRING,
                     value=calibrationBuffer
                 )
-                calData = self.ser_client.get_cosem_data(mCosem.classId, mCosem.obis, 2)            
-                result = calData == calibrationBuffer
+                logger.info(f'Result: {result}')
                 return result
             except: # Handler for fw v7.62. The meter is going restart after set calibration data but the data is changed. Check if the value was changed, if not retry set.
                 if i < retry-1:
@@ -286,11 +280,12 @@ class Calibration:
                 list of data read excess
         '''
         logger.info('reading meter setup')
-        data_read = self.ser_client.get_cosem_data(1, "0;128;96;14;81;255", 2)
+        mCosem = config.CosemList.MeterSetup
+        data_read = self.ser_client.get_cosem_data(mCosem.classId, mCosem.obis, 2)
         if isinstance(data_read, str):
             raise Exception(f'Fetch meter FAILED. Data result: {data_read}')
         
-        logger.debug(f'meter setup data length: {len(data_read)} B')
+        logger.debug(f'meter setup data: {data_read}')
         self.meterSetupRegister.extract(data_read)
         if verbose:
             self.meterSetupRegister.info()
@@ -322,13 +317,16 @@ class Calibration:
             logger.debug(f'filepath: {filepath}')
             with open(filepath, 'rb') as f:
                 buffer = pickle.load(f)
-                self.meterSetupRegister.extract(buffer)
+                self.meterSetupRegister = buffer
                 # print out the register to logfile
                 logger.info('#'*30)
                 logger.info('Meter setup value:')
-                for register in self.meterSetupRegister.info():
-                    logger.info(f'{register}: {self.meterSetupRegister[register]}')
+                _registers = self.meterSetupRegister.info()
+                for register in _registers:
+                    logger.info(f'{register}: {_registers[register].value}')
                 logger.info('#'*30)
+                
+                logger.debug(f'RTC Calibration data: {self.meterSetupRegister.RTCCalibration.value}')
         else:
             self.fetch_meter_setup()
             
@@ -362,7 +360,7 @@ class Calibration:
             try:
                 logger.debug(f'meter setup data length: {len(meterSetupBuffer)} B')
                 
-                logger.info('Sending data frame')
+                logger.info(f'Sending data frame: {meterSetupBuffer}')
                 result = self.ser_client.set_cosem_data(mCosem.classId, mCosem.obis, 2, CosemDataType.e_OCTET_STRING, meterSetupBuffer)
                 logger.info(f'Result: {result}')
                 return result
@@ -679,7 +677,7 @@ def main():
         geny.close()
         exit()
             
-    # STEP 1: Reading firmware version
+    # STEP 1: Reading firmware version and data backup
     logger.info('STEP 1: Reading fw version')
     fwVersion = meter.ser_client.get_cosem_data(1, '1;0;0;2;0;255', 2)
     if type(fwVersion) == str:
@@ -688,20 +686,35 @@ def main():
         exit(1)
     logger.info(f'Firmware Version: {bytes(fwVersion).decode("utf-8")}')
     
-    # STEP 2: Backup calibration data. If only the file is not available
+    # Backup calibration data. If only the meter is already calibrated
     '''
+        Calibrated meter is determined when :
+            - Meter SETUP CRC = 64000. I get this value after erase flash.
+    
         NOTE:
             - RTC Calibration is inside meter setup register
             - Energy Calibration data is inside calibration register, all values inside it will be set directly
             
             [Optional] On the future, create a flag to remove the file to recalibrate the meterId
     '''
-    if not os.path.exists(dataMeterSetup):
-        meter.saveMeterSetup(dataMeterSetup)
-    if not os.path.exists(dataCalibration):
-        meter.saveCalibrationData(dataCalibration)
+    meter.fetch_calibration_data()
+    meter.fetch_meter_setup()
+    print(meter.meterSetupRegister.CRC.value)
+    IsCalibrated = False
+    
+    if not FORCE_CALIBRATE:
+        if meter.meterSetupRegister.CRC.value != 10762:
+            logger.debug('Detect calibrated meter')
+            logger.info('Backup calibration data')
+            meter.saveMeterSetup(dataMeterSetup)
+            meter.saveCalibrationData(dataCalibration)
+            IsCalibrated = True
+        else:
+            logger.debug('Detect uncalibrated meter')
+    else:
+        logger.info('FORCE CALIBRATE')
         
-    # STEP 2: ERASE FLASH
+    # STEP 3: ERASE FLASH
     logger.info('STEP 2: Erase flash')
     meter.eraseFlash()
     logger.info('Restarting meter')
@@ -721,21 +734,13 @@ def main():
     if not meter.login():
         geny.close()
         exit()
-    # else:
-    #     logger.info('Found meter setup buffer file, skip meter setup fetch')
-    #     with open(dataMeterSetup, 'rb') as f:
-    #         meter.backupMeterSetup = pickle.load(f)
-    #         registers = vars(meter.backupMeterSetup)
-    #         logger.info('='*30)
-    #         logger.info('READ BUFFER FILE')
-    #         logger.info('='*30)
-    #         for regName in registers:
-    #             register = registers[regName]
-    #             logger.info(f'{regName}: {register.value}')
-    #         logger.info('='*30)
-            
-    #         logger.info('Erase flash')
-    #         meter.eraseFlash()
+        
+    # meter.fetch_calibration_data()
+    # meter.fetch_meter_setup()
+    # print(meter.meterSetupRegister.CRC.value)
+    
+    # geny.close()
+    # exit()
             
     # STEP 3: Configure LED1 setup
     logger.info('STEP 3: Setup LED1')
@@ -825,7 +830,7 @@ def main():
                 
     # STEP 7: Calibrate phase delay
     logger.info('STEP 7: CALIBRATING phase delay')
-    if not os.path.exists(dataCalibration):
+    if not IsCalibrated:
         while True:
             readBackRegisters = geny.readBackSamplingData()
             if validateGeny(readBackRegisters):
@@ -837,7 +842,7 @@ def main():
     
     # STEP 8: Calibrate Vrms and Irms
     logger.info('STEP 8: CALIBRATING Vrms Irms')
-    if not os.path.exists(dataCalibration):
+    if not IsCalibrated:
         meter.fetch_calibration_data()
         while True:
             readBackRegisters = geny.readBackSamplingData()
@@ -855,7 +860,7 @@ def main():
     
     # STEP 9: Calibrate Power Active
     logger.info('STEP 9: CALIBRATING POWER ACTIVE')
-    if not os.path.exists(dataCalibration):
+    if not IsCalibrated:
         meter.fetch_calibration_data()
         while True:
             readBackRegisters = geny.readBackSamplingData()
@@ -870,10 +875,12 @@ def main():
     else:
         logger.info('SKIP. Energy gain values will set by data file')
     
-    # STEP 10: Write calibration data (optional) and calculate error
-    if os.path.exists(dataCalibration):
+    # STEP 10: Write calibration data (if calibrated) and calculate error
+    if IsCalibrated:
+        logger.info('Write backup calibration data to meter')
         meter.write_calibration_data(dataCalibration)
-    
+        time.sleep(1)
+        
     logger.info('Calculating power active error')
     while True:
         readBackRegisters = geny.readBackSamplingData()
@@ -890,12 +897,20 @@ def main():
         readBackRegisters.PowerActive_C
     )
     for instantRegister, referenceRegister in zip(instantPowerActive, reference):
-        error = (referenceRegister.value - instantRegister.value) / referenceRegister.value
+        instantValue = meter.fetch_register(instantRegister) 
+        error = ((referenceRegister.value - instantValue) / referenceRegister.value) * 100
         logger.info(f'{instantRegister.name} meter measure: {instantRegister.value:.4f}, reference: {referenceRegister.value:.4f} error: {error:.5f}%')
 
     # STEP 11: 
     logger.info('STEP 11: FINISHING')
     
+    if not IsCalibrated:
+        logger.info('Store calibration values')
+        meter.fetch_calibration_data()
+        meter.fetch_meter_setup()
+        meter.saveMeterSetup(dataMeterSetup)
+        meter.saveCalibrationData(dataCalibration)
+        
     # meter.syncClock()
     logger.debug('Logout from meter')
     meter.logout()
@@ -904,4 +919,4 @@ def main():
     
 if __name__ == '__main__':
     main()
-    input('Calibration finish. Press enter to continue')
+    input('Calibration finished. Press enter to continue')
