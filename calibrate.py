@@ -326,10 +326,10 @@ class Calibration:
                     logger.info(f'{register}: {_registers[register].value}')
                 logger.info('#'*30)
                 
-                logger.debug(f'RTC Calibration data: {self.meterSetupRegister.RTCCalibration.value}')
         else:
             self.fetch_meter_setup()
             
+        logger.debug(f'RTC Calibration data: {self.meterSetupRegister.RTCCalibration.value}')
         
         logger.info('Fetch calibration data') # to calculate new crc
         self.fetch_calibration_data()
