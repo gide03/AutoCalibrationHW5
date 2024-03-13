@@ -14,6 +14,7 @@ class hdlcConstant:
 
 	ValueAddressServerBroadcastTwoBytes = 0x3FFF
 	MaskPhysicalDeviceAddress = 0x0000FFFF
+	MaskLogicalDeviceAddress = 0XFFFF0000
 
 	LengthDestLsapField = 1
 	LengthSourceLsapField = 1
@@ -30,7 +31,7 @@ class hdlcConstant:
 	LengthServerAddressField = 4
 	LengthFrameFormatField = 2
 	LengthControlField = 1
-	LengthHdlcHeaderWithoutInfo = LengthFrameFormatField + LengthServerAddressField \
+	LengthHdlcHeaderWithoutInfo = LengthFrameFormatField \
 		+ LengthClientAddressField + LengthControlField
 
 	LengthHcsField = 2
@@ -38,7 +39,7 @@ class hdlcConstant:
 	MaskExtendedAddress = 0x01
 
 	SizeFrameWithoutInfo = LengthFlag + LengthFlag + LengthFrameFormatField \
-		+ LengthServerAddressField + LengthClientAddressField + LengthControlField \
+		+ LengthClientAddressField + LengthControlField \
 		+ LengthHcsField + LengthFcsField
 	
 	hdlcConfigMaxSizeInfoField = 255

@@ -3,6 +3,11 @@ from threading import Thread, Timer
 from time import sleep
 import json
 
+class AddrSize:
+	ONE_BYTE  = 1
+	TWO_BYTE  = 2
+	FOUR_BYTE = 4
+
 class HdlcClass:
     rx_srcAddressLength = 0
     rx_destAddress = None
@@ -17,11 +22,12 @@ class HdlcClass:
     frame_counter_R = 0
     frame_counter_S = 0
 
-    def __init__(self, hdlc_param):
+    def __init__(self, hdlc_param, addr_size=AddrSize.FOUR_BYTE):
         self.cs_helper = checkSequence()
         self.hdlc_param = hdlc_param
         self.count_inactivity = 0
         self.stop_timer = False
+        self.addr_size = addr_size
 
     def checkFrameFlag(self, buffer):
         checkType = frameError.FLAG_ERROR
@@ -69,6 +75,7 @@ class HdlcClass:
         return checkType
 
     def getSrcAddressLength(self, buffer):
+        self.rx_srcAddressLength = 1
         for i in range(hdlcConstant.LengthServerAddressField):
             if buffer[hdlcConstant.OffsetSrcAddress + i] & hdlcConstant.MaskExtendedAddress != hdlcConstant.MaskExtendedAddress:
                 self.rx_srcAddressLength = self.rx_srcAddressLength + 1
@@ -117,10 +124,16 @@ class HdlcClass:
                 if (self.rx_srcAddress & hdlcConstant.MaskPhysicalDeviceAddress) == hdlcConstant.ValueAddressServerBroadcastTwoBytes:
                     checkType = frameError.NO_ERROR
                 else:
-                    if (self.rx_srcAddress & hdlcConstant.MaskPhysicalDeviceAddress) == i_deviceAddress:
-                        checkType = frameError.NO_ERROR
+                    if ((self.rx_srcAddress & hdlcConstant.MaskLogicalDeviceAddress) >> 16) == 1: # should not only 1 later
+                        if self.rx_srcAddressLength > 1:
+                            if (self.rx_srcAddress & hdlcConstant.MaskPhysicalDeviceAddress) == i_deviceAddress:
+                                checkType = frameError.NO_ERROR
+                            else:
+                                checkType = frameError.PHYSICAL_DEVICE_ADDRESS_ERROR
+                        elif self.rx_srcAddressLength == 1:
+                            checkType = frameError.NO_ERROR
                     else:
-                        checkType = frameError.PHYSICAL_DEVICE_ADDRESS_ERROR
+                        checkType = frameError.DEST_ADDR_ERROR
         return checkType
 
     def checkDestAddress(self, buffer):
@@ -167,13 +180,13 @@ class HdlcClass:
         if len(buffer) >= (2 * hdlcConstant.LengthFlag + hdlcConstant.LengthFrameFormatField + self.rx_srcAddressLength + hdlcConstant.LengthClientAddressField + 1):
             self.rx_frameControl = buffer[hdlcConstant.OffsetDestAddress + self.rx_srcAddressLength + hdlcConstant.LengthClientAddressField]
             checkType = frameError.NO_ERROR
-            if checkType == frameError.NO_ERROR:
-                checkControl = self.getControlType()
-                if checkControl != controlType.UI and checkControl != controlType.DISC:
-                    if (self.rx_destAddress & (hdlcConstant.MaskPhysicalDeviceAddress << 16)) == (hdlcConstant.ValueAddressServerBroadcastTwoBytes << 16):
-                        checkType = frameError.DEST_ADDR_ERROR
-                    if (self.rx_destAddress & hdlcConstant.MaskPhysicalDeviceAddress) == hdlcConstant.ValueAddressServerBroadcastTwoBytes:
-                        checkType = frameError.DEST_ADDR_ERROR
+            # if checkType == frameError.NO_ERROR:
+            #     checkControl = self.getControlType()
+                # if checkControl != controlType.UI and checkControl != controlType.DISC:
+                #     if (self.rx_destAddress & (hdlcConstant.MaskPhysicalDeviceAddress << 16)) == (hdlcConstant.ValueAddressServerBroadcastTwoBytes << 16):
+                #         checkType = frameError.DEST_ADDR_ERROR
+                #     if (self.rx_destAddress & hdlcConstant.MaskPhysicalDeviceAddress) == hdlcConstant.ValueAddressServerBroadcastTwoBytes:
+                #         checkType = frameError.DEST_ADDR_ERROR
         return checkType
 
     def getRx_nR(self, checkControl):
@@ -233,8 +246,6 @@ class HdlcClass:
             self.rx_pf_bit = pollFinalBit.PF_OFF
     
     def checkRxHdlcFrame(self, buffer, meterAddress):
-        self.rx_srcAddressLength = 1
-
         error = self.checkFrameFlag(buffer)
 
         if error == frameError.NO_ERROR:
@@ -251,7 +262,6 @@ class HdlcClass:
             error = self.checkInformationFrame(buffer)
         if error == frameError.NO_ERROR:
             self.getPollFinalBit()
-        
         return error
 
     def resetFrameCounter(self):
@@ -281,17 +291,27 @@ class HdlcClass:
         lowerHdlcAddress = destAddr & hdlcConstant.MaskPhysicalDeviceAddress
 
         destAddress = 0
-        if lowerHdlcAddress > 127:
-            destAddress = ((lowerHdlcAddress & 0x007F) << 1) | hdlcConstant.MaskExtendedAddress
-            destAddress = ((lowerHdlcAddress >> 7) << 9) + destAddress
+        if self.addr_size == AddrSize.ONE_BYTE:
+            if upperHdlcAddress > 127:
+                destAddress = ((upperHdlcAddress & 0x007F) << 1) | hdlcConstant.MaskExtendedAddress
+                destAddress = ((upperHdlcAddress >> 7) << 9) + destAddress
+            else:
+                destAddress = (upperHdlcAddress << 1) | hdlcConstant.MaskExtendedAddress
         else:
-            destAddress = (lowerHdlcAddress << 1) | hdlcConstant.MaskExtendedAddress
+            if lowerHdlcAddress > 127:
+                destAddress = ((lowerHdlcAddress & 0x007F) << 1) | hdlcConstant.MaskExtendedAddress
+                destAddress = ((lowerHdlcAddress >> 7) << 9) + destAddress
+            else:
+                destAddress = (lowerHdlcAddress << 1) | hdlcConstant.MaskExtendedAddress
 
-        if upperHdlcAddress > 127:
-            destAddress = ((upperHdlcAddress & 0x007F) << 17) + destAddress
-            destAddress = ((upperHdlcAddress >> 7) << 9) + destAddress
-        else:
-            destAddress = (upperHdlcAddress << 17) + destAddress
+            if upperHdlcAddress > 127:
+                destAddress = ((upperHdlcAddress & 0x007F) << 17) + destAddress
+                destAddress = ((upperHdlcAddress >> 7) << 9) + destAddress
+            else:
+                if self.addr_size == AddrSize.TWO_BYTE:
+                    destAddress = (upperHdlcAddress << 9) + destAddress
+                elif self.addr_size == AddrSize.FOUR_BYTE:
+                    destAddress = (upperHdlcAddress << 17) + destAddress
         return destAddress
     
     def getTxFrameControl(self, checkControl, setControl, nR, nS, pfBit):
@@ -363,19 +383,25 @@ class HdlcClass:
         frameLength = 0
         infoLength = len(tx_frameInfo)
         if infoLength > 0:
-            frameLength = hdlcConstant.LengthHdlcHeaderWithoutInfo + hdlcConstant.LengthHcsField + infoLength + hdlcConstant.LengthFcsField
+            frameLength = hdlcConstant.LengthHdlcHeaderWithoutInfo + self.addr_size + hdlcConstant.LengthHcsField + infoLength + hdlcConstant.LengthFcsField
         else:
-            frameLength = hdlcConstant.LengthHdlcHeaderWithoutInfo + hdlcConstant.LengthHcsField
+            frameLength = hdlcConstant.LengthHdlcHeaderWithoutInfo + self.addr_size + hdlcConstant.LengthHcsField
 
         tx_frameFormat = self.getTxFrameFormat(segBit, frameLength)
         tempBuff.append(tx_frameFormat >> 8)
         tempBuff.append(tx_frameFormat & 0xFF)
 
         tx_destAddress = self.getTxDestAddress(destAddr)
-        tempBuff.append(int((tx_destAddress & 0xFF000000) >> 24))
-        tempBuff.append(int((tx_destAddress & 0x00FF0000) >> 16))
-        tempBuff.append(int((tx_destAddress & 0x0000FF00) >> 8))
-        tempBuff.append(int(tx_destAddress & 0x000000FF))
+        if self.addr_size == AddrSize.FOUR_BYTE:
+            tempBuff.append(int((tx_destAddress & 0xFF000000) >> 24))
+            tempBuff.append(int((tx_destAddress & 0x00FF0000) >> 16))
+            tempBuff.append(int((tx_destAddress & 0x0000FF00) >> 8))
+            tempBuff.append(int(tx_destAddress & 0x000000FF))
+        elif self.addr_size == AddrSize.TWO_BYTE:
+            tempBuff.append(int((tx_destAddress & 0x0000FF00) >> 8))
+            tempBuff.append(int(tx_destAddress & 0x000000FF))
+        elif self.addr_size == AddrSize.ONE_BYTE:
+            tempBuff.append(int(tx_destAddress & 0x000000FF))
         tx_srcAddress = self.getTxSourceAddress(sourceAddr)
         tempBuff.append(tx_srcAddress)
 
