@@ -28,9 +28,9 @@ class GenyTestBench(GenySys):
         
         # Set mode
         self.setMode(self.mode)
-        
-        self.serialMonitor.startMonitor()
-        
+            
+    def __del__(self):
+        print('Testbench deleted')
     
     def setMode(self, mode:Mode):
         self.mode = mode
@@ -46,6 +46,8 @@ class GenyTestBench(GenySys):
 
     # API
     def open(self):
+        self.serialMonitor.startMonitor()
+        
         buffer = self.connect()
         result = self.serialMonitor.transaction(buffer)
         if result == b'':
@@ -59,10 +61,13 @@ class GenyTestBench(GenySys):
     def close(self):
         buffer = self.disconnect()
         result = self.serialMonitor.transaction(buffer)
-        self.response.extractDataFrame(result)
-        if self.response.getErrorCode() == 0:
-            return True
-        return False
+        try:
+            self.response.extractDataFrame(result)
+            if self.response.getErrorCode() == 0:
+                return True
+            return False
+        except:
+            return False
     
     def setElementSelector(self, elementSelector:[ElementSelector.EnergyErrorCalibration, ElementSelector.ThreePhaseAcStandard]):
         '''
