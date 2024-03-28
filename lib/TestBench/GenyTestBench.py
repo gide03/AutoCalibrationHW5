@@ -1,5 +1,6 @@
 import math
 from datetime import datetime, timedelta
+from serial import Serial
 
 from typing import Union
 from .GenyUtil import VoltageRange, VoltageRangeError, ElementSelector, PowerSelector
@@ -28,9 +29,6 @@ class GenyTestBench(GenySys):
         
         # Set mode
         self.setMode(self.mode)
-            
-    def __del__(self):
-        print('Testbench deleted')
     
     def setMode(self, mode:Mode):
         self.mode = mode
@@ -45,7 +43,15 @@ class GenyTestBench(GenySys):
 
 
     # API
+    def getSerial(self)->Serial:
+        '''
+            Get Serial object
+        '''
+        return self.serialMonitor.ser
+    
     def open(self):
+        print('[GenyTestBench] Establishing connection to geny')
+        print('[GenyTestBench] Start monitor')
         self.serialMonitor.startMonitor()
         
         buffer = self.connect()
@@ -64,9 +70,12 @@ class GenyTestBench(GenySys):
         try:
             self.response.extractDataFrame(result)
             if self.response.getErrorCode() == 0:
+                self.serialMonitor.stopMonitor()
                 return True
+            self.serialMonitor.stopMonitor()
             return False
         except:
+            self.serialMonitor.stopMonitor()
             return False
     
     def setElementSelector(self, elementSelector:[ElementSelector.EnergyErrorCalibration, ElementSelector.ThreePhaseAcStandard]):

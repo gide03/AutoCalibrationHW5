@@ -49,6 +49,13 @@ class SerialMonitor:
         '''
             Run serial handler monitor
         '''
+        print('[SerialHandler] check serial is open')
+        if not self.ser.is_open:
+            print('[SerialHandler] opening serial')
+            self.ser.open()
+        else:
+            print('[SerialHandler] serial already open')
+            
         print('[SerialHandler] starting serialMonitor')
         try:
             self.service.start()
@@ -61,11 +68,15 @@ class SerialMonitor:
         '''
             Stop serial handler monitor
         '''
-        print('[SerialHandler] starting serialMonitor')
+        print('[SerialHandler] stoping serialMonitor')
         self.isRunning = False
-        if isBlocking:
+        if isBlocking:                
             while self.serviceIsActive:
                 time.sleep(0.1)
+        
+        # make sure to close serial port
+        if self.ser.is_open:
+            self.ser.close()
         
     def transaction(self, dataFrame:bytearray, timeout=5) -> bytearray:
         '''
@@ -109,5 +120,8 @@ class SerialMonitor:
                         if self.callback != None:
                             self.callback(tempBuffer)
                         break
+        print('[SerialHandler] closing serial')
+        self.ser.close()
         print('[SerialHandler] serialMonitor has been terminated')
         self.serviceIsActive = False
+        
