@@ -3,7 +3,7 @@ import logging
 import serial
 import pathlib
 import argparse
-from datetime import datetime
+from datetime import datetime, timedelta
 CURRENT_PATH = pathlib.Path(__file__).parent.absolute()
 parser = argparse.ArgumentParser(description="Checking battery voltage and synchronize meter clock. If you didn't pass parameter, configuration will taken from config.py")
 parser.add_argument('-p', '--meterport', type=str, help='Communication port for meter.')
@@ -16,7 +16,7 @@ from lib.DLMS_Client.dlms_service.dlms_service import mechanism
 from lib.DLMS_Client.DlmsCosemClient import DlmsCosemClient
 from testcase import TestFetchCosem
 
-
+GMT = config.CalibrationParameter.TIME_DEVIATION
 METER_USB_PORT = config.METER_USB_PORT
 if args.meterport != None:
     METER_USB_PORT = args.meterport
@@ -29,7 +29,6 @@ meterId = input('Meter ID: ')
 if len(meterId) == 0:
     exit('Calibration Canceled')
     
-
 #
 # Logger setup    
 #
@@ -77,17 +76,30 @@ if ser_client.client_login(config.commSetting.AUTH_KEY, mechanism.HIGH_LEVEL):
     logger.info(f'Fetch battery level')
     batteryLevel = TestFetchCosem.fetch(ser_client, cosem_batteryLevel, 2)    
     logger.info(f'Battery level: {batteryLevel*10**-3} V')
-
-    isValid = input(f'Is valid? (default y)')
-    if isValid == 'n':
-        logger.critical('REJECT Battery voltage.')
+    if (batteryLevel*10**-3) >= 3.6:
+        logger.info('Battery voltage PASSED')
+    else:
+        logger.critical('Battery voltage under 3.6V')
         ser_client.client_logout()
         exit()
-    logger.info('Battery voltage PASSED')
     
     # TODO: Synchronize RTC
+    logger.info(f'Synchronize RTC using GMT: {GMT} OR time deviation: {GMT*60}')
+    logger.info('Read current time deviation')
+    timeDeviation = ser_client.get_cosem_data(8, "0;0;1;0;0;255", 3)
+    logger.info(f'Time deviation: {timeDeviation}')
+    if timeDeviation != GMT*60:
+        logger.info(f'Set time deviation to {GMT*60}')
+        setResult = ser_client.set_cosem_data(8, "0;0;1;0;0;255", 3, 16, 60*GMT)
+        logger.info(f'Set deviation result: {setResult}')
+        logger.info('Time deviation after')
+        timeDeviation = ser_client.get_cosem_data(8, "0;0;1;0;0;255", 3)
+        logger.info(f'Time deviation: {timeDeviation}')
+    else:
+        logger.info(f'Time deviation already at {GMT}')
+    
     logger.info('Synchronize Clock')
-    currentDate = datetime.now()
+    currentDate = datetime.now() - timedelta(minutes=60*7) + timedelta(minutes=60*GMT)
     year_HB = (currentDate.year >> 8) & 0xff
     year_LB = currentDate.year & 0xff
     month = currentDate.month

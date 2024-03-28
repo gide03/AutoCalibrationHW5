@@ -16,6 +16,8 @@ class CalibrationParameter:
     GENY_SLOT_INDEX = 3         # NOTE: Posisi meter pada slot geny test bench, ditihitung dari palig kiri 1, 2, 3
     ERROR_ACCEPTANCE = 0.4      # NOTE: Kriteria meter sukses dikalibrasi dalam persen
     
+    TIME_DEVIATION = 7
+    
     # Test bench nominal configuration
     PHASE_ANGLE_CONFIG = 60     # in Degree
     VOLTAGE_NOMINAL = 230       # in Volt
