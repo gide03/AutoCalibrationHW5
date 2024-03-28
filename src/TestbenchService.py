@@ -33,12 +33,13 @@ class TestBenchService:
     def start(self):
         self.mSocket.bind((self.ipAddress, self.port))
         self.mSocket.listen()
-        self.mSocket.settimeout(0.1)
+        # self.mSocket.settimeout(0.1)
         print(f'Server is listening to {self.ipAddress} {self.port}')
         while True:
             try:
                 clientSocket, clientAddress = self.mSocket.accept()
             except TimeoutError:
+                sleep(0.1)
                 continue
 
             # Create handler
@@ -125,10 +126,12 @@ class TestBenchService:
         try:
             if testBenchVendor == 'Geny YC99T_5C':
                 newTestbench = GenyTestBench(usbport=serialport, baudrate=baudRate)
+                newTestbench.open()
                 self.testBench[id] = newTestbench
                 isOk = True
             elif testBenchVendor == 'Geny YC99T_3C':
                 newTestbench = GenyTestBench(usbport=serialport, baudrate=baudRate)
+                newTestbench.open()
                 self.testBench[id] = newTestbench
                 isOk = True
         except serial.SerialException as e:

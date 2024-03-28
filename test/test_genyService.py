@@ -50,6 +50,8 @@ def test_serviceOpenClose(serial_port, geny_version):
             is_alreadyOpened = False
         elif 'PermissionError' in errorMessage:    
             is_alreadyOpened = True
+        elif 'Could not exclusively lock port' in errorMessage:
+            is_alreadyOpened = True
     
     # recreate the geny connection
     if is_alreadyOpened: 
@@ -127,6 +129,8 @@ def test_duplicatedConnection(serial_port, geny_version):
         if 'FileNotFoundError' in errorMessage:
             is_alreadyOpened = False
         elif 'PermissionError' in errorMessage:    
+            is_alreadyOpened = True
+        elif 'Could not exclusively lock port' in errorMessage:
             is_alreadyOpened = True
     
     # recreate the geny connection
