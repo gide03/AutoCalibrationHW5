@@ -165,6 +165,75 @@ def test_duplicatedConnection(serial_port, geny_version):
     result = geny.close()
     print(f'Response: {result}')
     assert result
+    
+def test_turnSetGeny():
+    
+    geny = GenyApi('Client1')
+    
+    try:
+        geny.close()
+    except:
+        pass
+    
+    print('Create new connection')
+    assert geny.open('COM1', 9600, geny.GenyVersion.YC99T_3C)
+    
+    print('Set GENY')
+    response = geny.setGeny(
+        voltage=230,
+        current=10,
+        phase=60,
+        frequency=50,
+        meterConstant=1000,
+        ring=2
+    )
+    print(f'Response: {response}')
+    assert response
+    
+    sleep(5)
+    print('Turn Off Geny')
+    assert geny.close()
+    
+def test_currentStep():
+    geny = GenyApi('Client1')
+    
+    try:
+        geny.close()
+    except:
+        pass
+    
+    print('Create new connection')
+    assert geny.open('COM1', 9600, geny.GenyVersion.YC99T_3C)
+    
+    print('Turn on Geny')
+    response = geny.setGeny(
+        voltage=230,
+        phase=60,
+        frequency=50,
+        meterConstant=1000,
+        ring=2
+    )
+    
+    print(f'Response: {response}')
+    assert response
+    sleep(3)
+    
+    for current in (1, 3, 6, 12, 15, 20):
+        print(f'Set GENY Current = {current}A')
+        response = geny.setGeny(current=current)
+        print(f'Response: {response}')
+        assert response
+        sleep(3)
+        print('Get read back')
+        reabackData = geny.getReadBack()
+        print('readback data', reabackData)
+        sleep(5)
+        
 
+    print('Turn Off Geny')
+    assert geny.close()
+    
 # test_serviceOpenClose('COM1', GenyApi.GenyVersion.YC99T_5C)
-test_duplicatedConnection('COM1', GenyApi.GenyVersion.YC99T_5C)
+# test_duplicatedConnection('COM1', GenyApi.GenyVersion.YC99T_5C)
+# test_turnSetGeny()
+test_currentStep()
