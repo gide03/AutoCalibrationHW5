@@ -1,8 +1,9 @@
 import pathlib
 import site
-CURRENT_PATH = pathlib.Path(__file__)
-site.addsitedir(CURRENT_PATH)
+CURRENT_PATH = pathlib.Path(__file__).parent.absolute()
+site.addsitedir(CURRENT_PATH.parent)
 
+import gc
 import socket
 import serial
 import json
@@ -24,9 +25,9 @@ class TestBenchService:
         self.testBench = {}
                 
         self.api = {
-            "systemGetSupportedTestBench": self.system_getSupportedTestBench,
-            "systemAddTestBench": self.systen_addTestBench,
-            "systemCloseTestBench": self.system_closeTestBench,
+            "systemGetSupportedTestBench_v1": self.system_getSupportedTestBench,
+            "systemAddTestBench_v1": self.system_addTestBench,
+            "systemCloseTestBench_v1": self.system_closeTestBench,
         }
     
     def start(self):
@@ -102,7 +103,7 @@ class TestBenchService:
         '''
         
     
-    def systen_addTestBench(self, apiData:dict, socketClient:socket.socket):
+    def system_addTestBench(self, apiData:dict, socketClient:socket.socket):
         '''
             apiData keys:
                 - id `str`: used for testbench id
@@ -123,11 +124,11 @@ class TestBenchService:
         isOk = False
         try:
             if testBenchVendor == 'Geny YC99T_5C':
-                newTestbench = GenyTestBench.GenyTestBench(usbport=serialport, baudrate=baudRate)
+                newTestbench = GenyTestBench(usbport=serialport, baudrate=baudRate)
                 self.testBench[id] = newTestbench
                 isOk = True
             elif testBenchVendor == 'Geny YC99T_3C':
-                newTestbench = GenyTestBench.GenyTestBench(usbport=serialport, baudrate=baudRate)
+                newTestbench = GenyTestBench(usbport=serialport, baudrate=baudRate)
                 self.testBench[id] = newTestbench
                 isOk = True
         except serial.SerialException as e:
@@ -154,99 +155,46 @@ class TestBenchService:
         if id == '*':
             tbIds = list(self.testBench.keys())
             for id in tbIds:
-                testbench = self.testBench[id]
-                del testbench
+                del self.testBench[id]
+                # gc.collect()
+                
+            print('Current testbench:', self.testBench)
+            
         else:
             if id not in self.testBench:
                 socketClient.send(b'NA. Testbench is not exist')
             self.testBench[id].close()
             del self.testBench[id]
             print('Current testbench:', self.testBench)
-            
+        
+        gc.collect()
         socketClient.send(b'OK')
     
-class GenyApi:
-    def __init__(self, id:str):
-        self.id=id
-        self.ipAddress = 'localhost'
-        self.port = 1234
-        
-        self.streamBuffer = 512
-        self.tcpClient = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.tcpClient.connect((self.ipAddress, self.port))
-        
-    def transaction(self, api:bytearray, timeout:int=6)->str:
-        self.tcpClient.settimeout(timeout)
-        self.tcpClient.send(api)
-        recvData = self.tcpClient.recv(self.streamBuffer)
-        return recvData.decode('utf-8')
-    
-    def open(self, serialPort:str, baudrate:int, testBenchVendor:str):
-        '''
-            attach serial port to test bench. Raise exception if failed
-        
-            parameters:
-                serialPort `str`: usb serial port
-                baudRate `int`: baud rate used for usb serial
-                testBenchVendor `str`: test bench will be used. Use get vendor list to show all supported testbench
-            
-            return:
-                - True if SUCCESS
-        '''
-        payload = {
-            "id": self.id,
-            "testbenchVendor": testBenchVendor,
-            "serialPort": serialPort,
-            "baudRate": baudrate
-        }
-        payload = json.dumps(payload)
-        api = f'{self.id}#systemAddTestBench?{payload}'.encode('utf-8')
-        response = self.transaction(api)
-        if 'OK' in response:
-            return True
-        else:
-            raise Exception(f'Could not open test bench. Error Message: {response}')
-        
-    
-    def close(self):
-        '''
-            Close geny connection
-        '''
-        payload = {
-            "id": self.id
-        }
-        payload = json.dumps(payload)
-        api = f'{self.id}#systemCloseTestBench?{payload}'.encode('utf-8')
-        response = self.transaction(api)
-        if 'OK' in response:
-            return True
-        else:
-            raise Exception(f'Could not close test bench. Error Message: {response}')
 
-def test():
-    COM_PORT = 'COM1'
+# def test():
+#     COM_PORT = 'COM1'
     
-    is_alreadyOpened = False
+#     is_alreadyOpened = False
     
-    geny = GenyApi('coba')
-    print('Open')
-    try:
-        result = geny.open('COM1', 9600, "Geny YC99T_5C")
-        print(f'Response: {result}')
-    except Exception as e:
-        print('Open failed')
-        if COM_PORT in str(e):
-            print(f'{COM_PORT} already opened')
-            is_alreadyOpened = True
+#     geny = GenyApi('coba')
+#     print('Open')
+#     try:
+#         result = geny.open('COM1', 9600, "Geny YC99T_5C")
+#         print(f'Response: {result}')
+#     except Exception as e:
+#         print('Open failed')
+#         if COM_PORT in str(e):
+#             print(f'{COM_PORT} already opened')
+#             is_alreadyOpened = True
 
-            # print('Close first')
-            # geny.close()
-            # result = geny.open('COM1', 9600, "Geny YC99T_5C")
-            # print(f'Response: {result}')
+#             # print('Close first')
+#             # geny.close()
+#             # result = geny.open('COM1', 9600, "Geny YC99T_5C")
+#             # print(f'Response: {result}')
         
-    print('Close')
-    result = geny.close()
-    print(f'Response: {result}')
+#     print('Close')
+#     result = geny.close()
+#     print(f'Response: {result}')
     
 
 import sys
@@ -256,5 +204,3 @@ if '-s' in argv:
     testbenchService.start()
     while True:
         sleep(0.1)
-else:
-    test()

@@ -29,10 +29,6 @@ class GenyTestBench(GenySys):
         
         # Set mode
         self.setMode(self.mode)
-            
-    def __del__(self):
-        print('Testbench deleted')
-        self.serialMonitor.stopMonitor()
     
     def setMode(self, mode:Mode):
         self.mode = mode
