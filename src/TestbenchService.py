@@ -1,3 +1,4 @@
+import typing
 import pathlib
 import site
 CURRENT_PATH = pathlib.Path(__file__).parent.absolute()
@@ -11,6 +12,7 @@ from typing import Tuple
 from threading import Thread
 from time import sleep
 from lib.TestBench.GenyTestBench import GenyTestBench
+from lib.TestBench.GenyUtil import VoltageRange, ElementSelector, PowerSelector
 
 class TestBenchService:
     SupportedTestBench = {
@@ -28,18 +30,20 @@ class TestBenchService:
             "systemGetSupportedTestBench_v1": self.system_getSupportedTestBench,
             "systemAddTestBench_v1": self.system_addTestBench,
             "systemCloseTestBench_v1": self.system_closeTestBench,
+            
+            "api_applySource_v1": self.api_applySource,
+            "api_getReadBack_v1": self.api_readFeedBack,
         }
     
     def start(self):
         self.mSocket.bind((self.ipAddress, self.port))
         self.mSocket.listen()
-        # self.mSocket.settimeout(0.1)
+        self.mSocket.settimeout(1)
         print(f'Server is listening to {self.ipAddress} {self.port}')
         while True:
             try:
                 clientSocket, clientAddress = self.mSocket.accept()
             except TimeoutError:
-                sleep(0.1)
                 continue
 
             # Create handler
@@ -88,8 +92,11 @@ class TestBenchService:
                 elif 'system' in api:
                     self.api[api](data, clientSocket)
                 else:
-                    testBench = self.testBench[agentName]
-                    self.api[api](testBench, data, clientSocket)    
+                    if agentName in self.testBench:
+                        testBench = self.testBench[agentName]
+                        self.api[api](testBench, data, clientSocket)
+                    else: 
+                        clientSocket.send(b'NA')
             except TimeoutError:
                 break
         clientSocket.close()
@@ -166,6 +173,7 @@ class TestBenchService:
         else:
             if id not in self.testBench:
                 socketClient.send(b'NA. Testbench is not exist')
+                return
             self.testBench[id].close()
             del self.testBench[id]
             print('Current testbench:', self.testBench)
@@ -173,33 +181,83 @@ class TestBenchService:
         gc.collect()
         socketClient.send(b'OK')
     
-
-# def test():
-#     COM_PORT = 'COM1'
-    
-#     is_alreadyOpened = False
-    
-#     geny = GenyApi('coba')
-#     print('Open')
-#     try:
-#         result = geny.open('COM1', 9600, "Geny YC99T_5C")
-#         print(f'Response: {result}')
-#     except Exception as e:
-#         print('Open failed')
-#         if COM_PORT in str(e):
-#             print(f'{COM_PORT} already opened')
-#             is_alreadyOpened = True
-
-#             # print('Close first')
-#             # geny.close()
-#             # result = geny.open('COM1', 9600, "Geny YC99T_5C")
-#             # print(f'Response: {result}')
+    # TEST BENCH CONTROL
+    def api_applySource(self, testBench, apiData:dict, socketClient:socket.socket):
+        '''
+            > currently hardcoded for common configuration
         
-#     print('Close')
-#     result = geny.close()
-#     print(f'Response: {result}')
-    
-
+            apiData keys:
+                - id `str`: testbench tag id
+                - isCommon `bool`: if True 
+                - voltage `list float[3]` or `float`: 
+                    - `isCommon = True` voltage amplitude for all phase
+                    - `isCommon = False` voltage amplitude for [phase 1, phase 2, phase 3]
+                - current `list float[3]`: current for [phase 1, phase 2, phase 3]
+                    - `isCommon = True` current amplitude for all phase
+                    - `isCommon = False` current amplitude for [phase 1, phase 2, phase 3]
+                - phase `float`: phase in degree for power factor
+                - frequency `float`: the frequency
+                - meterConstant `int`: pulse constant
+                - ring `int`: measurement ring
+        '''
+        try:
+            isCommon = apiData['isCommon']
+            voltage = apiData['voltage']
+            current = apiData['current']
+            phase = apiData['phase']
+            frequency = apiData['frequency']
+            meterConstant = apiData['meterConstant']
+            ring = apiData['ring']
+        except:
+            socketClient.send(b'NA, Key error')
+            return
+        
+        isCommon = True # HARDCODED FOR
+        
+        # get connection
+        # testBench = None
+        # if id in self.testBench:
+        #     testBench = self.testBench[id]
+        # else:
+        #     socketClient.send(b'NA, Connection Id is not exist')
+        
+        # apply testbench
+        if isinstance(testBench, GenyTestBench):
+            testBench.setMode(GenyTestBench.Mode.ENERGY_ERROR_CALIBRATION)
+            testBench.setPowerSelector(PowerSelector._3P4W_ACTIVE)
+            if isCommon:
+                testBench.setElementSelector(ElementSelector.EnergyErrorCalibration._COMBINE_ALL)
+                
+            testBench.setVoltageRange(VoltageRange.YC99T_3C._380V)
+            if phase != None:
+                testBench.setPowerFactor(phase, inDegree=True)
+            if voltage != None:
+                testBench.setVoltage(voltage)
+            if current != None:
+                print("set Current to",current)
+                testBench.setCurrent(current)
+            if frequency != None:
+                testBench.setFrequency(frequency)
+            if None not in (meterConstant, ring):
+                testBench.setCalibrationConstants(meterConstant, ring)
+            testBench.apply()
+            socketClient.send(b'OK')
+            
+    def api_readFeedBack(self, testBench:typing.Union[GenyTestBench], apiData:dict, socketClient:socket.socket):
+        '''
+            Read feedback from GENY. The ApiData will be ignored
+        '''
+        readbackReg = testBench.readBackSamplingData()
+        
+        registers = readbackReg.registerList
+        output = {}
+        for reg in registers:
+            output[reg.name] = reg.value
+            
+        output = json.dumps(output).encode('utf-8')
+        socketClient.send(output)
+        
+        
 import sys
 argv = sys.argv
 if '-s' in argv:

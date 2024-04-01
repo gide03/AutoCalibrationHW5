@@ -16,9 +16,19 @@ class GenyApi:
         self.ipAddress = 'localhost'
         self.port = port
         
-        self.streamBuffer = 512
+        self.streamBuffer = 1024
         self.tcpClient = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.tcpClient.connect((self.ipAddress, self.port))
+        
+        
+        # Register
+        self.isCommon = True
+        self.voltage = 230
+        self.current = 0
+        self.phase = 0
+        self.frequency = 50
+        self.meterConstant = 1000
+        self.ring = 3
         
     def transaction(self, api:bytearray, timeout:int=6)->str:
         self.tcpClient.settimeout(timeout)
@@ -81,3 +91,46 @@ class GenyApi:
             return True
         else:
             raise Exception(f'Could not close test bench. Error Message: {response}')
+        
+    def setGeny(self, 
+        isCommon:bool = None,
+        voltage:float = None,
+        current:float = None,
+        phase:float = None,
+        frequency:int = None,
+        meterConstant:int = None,
+        ring:int = None
+    ):
+        '''
+            None means 
+        '''
+        payload = {
+            "id" : self.id,
+            "isCommon" : isCommon,
+            "voltage" : voltage,
+            "current" : current,
+            "phase" : phase,
+            "frequency" : frequency,
+            "meterConstant" : meterConstant,
+            "ring" : ring,
+        }
+        payload = json.dumps(payload)
+        api = f'{self.id}#api_applySource_v1?{payload}'.encode('utf-8')
+        response = self.transaction(api)
+        if 'OK' in response:
+            return True
+        else:
+            raise Exception(f'Could not close test bench. Error Message: {response}')
+    
+    def getReadBack(self) -> dict:
+        '''
+        
+        '''
+        api = f'{self.id}#api_getReadBack_v1?[]'.encode('utf-8')
+        response = self.transaction(api)
+        # try:
+        print(response)
+        return None
+        # except:
+        #     raise Exception(f'Could not close test bench. Error Message: {response}')
+            
