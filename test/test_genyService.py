@@ -236,4 +236,4 @@ def test_currentStep():
 # test_serviceOpenClose('COM1', GenyApi.GenyVersion.YC99T_5C)
 # test_duplicatedConnection('COM1', GenyApi.GenyVersion.YC99T_5C)
 # test_turnSetGeny()
-test_currentStep()
+# test_currentStep()
