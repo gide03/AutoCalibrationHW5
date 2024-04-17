@@ -123,7 +123,11 @@ class RegisterWrapper:
         if verbose:
             print('============== REGISTER INFO ==============')
             for regName in objectList:
-                print(f'{regName}: {objectList[regName].value}')
+                register = objectList[regName]
+                if isinstance(register, list):
+                    print(f'{regName}: [{", ".join([str(i.value) for i in register])}]')
+                else:
+                    print(f'{regName}: {objectList[regName].value}')
         return vars(self)
     
     def byteSize(self)->int:
@@ -131,7 +135,15 @@ class RegisterWrapper:
             bytesize of register wrapper
         '''
         objectList = vars(self)
-        byteSize = sum([objectList[register].size for register in objectList])
+        byteSize = 0
+        for regName in objectList:
+            # byteSize = sum([objectList[register].size for register in objectList])
+            register = objectList[regName]
+            if isinstance(register, list):
+                for element in register:
+                    byteSize += element.size
+            else:
+                byteSize += register.size
         return byteSize
 
     def extract(self, dataFrame:Union[list,tuple,bytearray]):
@@ -142,9 +154,15 @@ class RegisterWrapper:
         # print('extracting dataFrame')
         for regName in objectList:
             register = objectList[regName]
-            registerSize = register.size
-            raw_value = [dataFrame.pop(0) for i in range(registerSize)]
-            register.setValueFromDf(raw_value)
+            if isinstance(register, list):
+                for element in register:
+                    registerSize = element.size
+                    raw_value = [dataFrame.pop(0) for i in range(registerSize)]
+                    element.setValueFromDf(raw_value)
+            else:
+                registerSize = register.size
+                raw_value = [dataFrame.pop(0) for i in range(registerSize)]
+                register.setValueFromDf(raw_value)
         return dataFrame
         
     def dataFrame(self):
@@ -152,7 +170,11 @@ class RegisterWrapper:
         df = []
         for regName in objectList:
             register = objectList[regName]
-            df.extend(register.hex())            
+            if isinstance(register, list):
+                for element in register:
+                    df.extend(element.hex())
+            else:
+                df.extend(register.hex())            
         return df
         
     def objectList(self):
