@@ -1,4 +1,5 @@
 from .Register import Register, RegisterWrapper
+from .CalibrationData import CalibrationRegister
 
 class MeterSetup(RegisterWrapper):
     def __init__(self):
@@ -86,3 +87,31 @@ class MeterSetup(RegisterWrapper):
 
         self.Reserved = [Register('Reserved', 'uint16', 0) for i in range(67)]
         self.Crc = Register('Crc', 'uint16', 8386)
+    
+    def calRunningCRC16(self, dataFrame):
+        lCrc = 0xffff
+        
+        for dataIdx in range(0, len(dataFrame)):
+            data = dataFrame[dataIdx]
+            lCrc = lCrc ^ (data << 8)
+            for i in range(0,8):
+                if (lCrc & 0x8000):
+                    lCrc = (lCrc << 1) ^ 0x1021
+                else:
+                    lCrc <<= 1
+            lCrc &= 0xffff
+        # return [lCrc&0xff, lCrc>>8]
+        return lCrc
+
+    def updateCRC(self, calibrationData:CalibrationRegister):
+        df = calibrationData.dataFrame()
+        df.extend(super().dataFrame())
+        
+        df.pop(-1)
+        df.pop(-1)
+        
+        newCrc = self.calRunningCRC16(df)
+        self.Crc.value = newCrc
+        
+        
+        
