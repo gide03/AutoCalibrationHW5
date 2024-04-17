@@ -39,12 +39,27 @@ VERIFICATION PROCESS
 '''
 
 import pathlib
+import site
+CURRENT_PATH = pathlib.Path(__file__)
+site.addsitedir(CURRENT_PATH)
+
+import serial
 import config
+from time import sleep
+from datetime import datetime, timedelta
 from src.Logger import getLogger
+from lib.TestBench.GenyApi import GenyApi
+
+from lib.Utils.CalibrationData import CalibrationRegister
+from lib.Utils.MeterSetup import MeterSetup
+from lib.Utils.CalMode import CalMode
 
 from lib.DLMS_Client.dlms_service.dlms_service import mechanism, CosemDataType
 from lib.DLMS_Client.DlmsCosemClient import DlmsCosemClient
 from lib.DLMS_Client.hdlc.hdlc_app import AddrSize
+
+PORT_GENY = '/dev/ttyUSB0'
+PORT_METER = '/dev/ttyUSB1'
 
 logger = getLogger('dev.log')
 
@@ -53,3 +68,65 @@ logger.info('*'*30)
 logger.info('STARRTING CALIBRATION')
 logger.info('='*30)
 
+
+VOLTAGE_NOMINAL = 230   # in Volt
+CURRENT_NOMINAL = 30    # in Ampere
+POWERUP_DELAY = 10      # in Second
+CYCLE_CAL = 90
+
+
+def calibrate(comPort):
+    t = datetime.now()
+    logger.info(f'Wait meter for booting for {POWERUP_DELAY}s')
+    dlmsClient = DlmsCosemClient(
+        port=comPort,
+        baudrate=19200,
+        parity=serial.PARITY_NONE,
+        bytesize=serial.EIGHTBITS,
+        stopbits=serial.STOPBITS_ONE,
+        timeout=0.1,
+        inactivity_timeout=10,
+        login_retry=1,
+        meter_addr=16,
+        client_nb=16,
+        address_size = AddrSize.ONE_BYTE
+    )
+
+    while datetime.now()-t < timedelta(seconds=POWERUP_DELAY):
+        sleep(0.01)
+
+    # Login
+    cosemList = config.CosemList()
+    loginResult = False
+    try:
+        logger.info('Login to meter')
+        loginResult = dlmsClient.client_login('wwwwwwwwwwwwwwww', mechanism.HIGH_LEVEL)
+        logger.info(f'result login dlms - {loginResult}')
+    except Exception as e:
+        logger.critical(f'Failed to login, error message: {str(e)}')
+        return False
+
+    
+    
+
+def main():
+    logger.info('='*30)
+    logger.info('STARTING CALIBRATION')
+    logger.info('='*30)
+    
+    logger.info('TURN ON GENY')
+    geny = GenyApi('Geny')
+    geny.open('/dev/ttyUSB0', 9600, GenyApi.GenyVersion.YC99T_5C)
+    geny.setGeny(
+        isCommon=True,
+        voltage=230,
+        current=30,
+        phase=60,
+        frequency=50,
+        meterConstant=1000,
+        ring=3
+    )
+    calibrate(PORT_METER)
+
+if __name__ == "__main__":
+    main()
