@@ -49,6 +49,10 @@ class CosemList(CosemObject):
     PowerFactorL2 = CosemObject('PowerFactorL2', '1;0;53;7;0;255', 3)
     PowerFactorL3 = CosemObject('PowerFactorL3', '1;0;73;7;0;255', 3)
     InstantFrequency = CosemObject('InstantFrequency', '1;0;14;7;0;255', 3)
+    Temperature = CosemObject('Temperature', '1;0;96;9;0;255', 3)
+    
+    LED1Configuration = CosemObject('LED1Configuration', '0;128;96;6;8;255', 1)
+    LED2Configuration = CosemObject('LED2Configuration', '0;128;96;6;20;255', 1)
     
     InstantVoltagePhase1 = CosemObject('InstantVoltagePhase1', "1;0;32;7;0;255", 3)
     InstantVoltagePhase2 = CosemObject('InstantVoltagePhase2', "1;0;52;7;0;255", 3)

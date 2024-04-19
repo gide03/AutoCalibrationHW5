@@ -120,7 +120,7 @@ class GenyApi:
         if 'OK' in response:
             return True
         else:
-            raise Exception(f'Could not close test bench. Error Message: {response}')
+            raise Exception(f'Could not set test bench. Error Message: {response}')
     
     def getReadBack(self) -> dict:
         '''

@@ -21,6 +21,9 @@ class Register:
         self.c_stringDtype = c_stringDtype
         self.value = value
         self.size = Register.byteSize[self.c_stringDtype]
+    
+    def set(self, value):
+        self.value = value
         
     def setValueFromDf(self, dataFrame:list):
         '''
