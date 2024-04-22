@@ -40,8 +40,9 @@ VERIFICATION PROCESS
 
 import pathlib
 import site
-CURRENT_PATH = pathlib.Path(__file__)
-site.addsitedir(CURRENT_PATH)
+import os
+CURRENT_PATH = pathlib.Path(__file__).parent.absolute()
+site.addsitedir(CURRENT_PATH.parent)
 
 import json
 import serial
@@ -63,12 +64,12 @@ PORT_GENY = '/dev/ttyUSB0'
 PORT_METER = '/dev/ttyUSB1'
 
 logger = getLogger('dev.log')
-with open(f'{CURRENT_PATH}/configurations/MeterSetup.json', 'r') as f:
+with open(f'{CURRENT_PATH}/configurations/CalibrationStep.json', 'r') as f:
     configFile = json.load(f)
 
 def initDlmsClient() -> DlmsCosemClient:
     logger.info('Initialize DLMS client')
-    myConfiguration = configFile['Environment']['DlmsClient']
+    myConfiguration = configFile['Environment']['Connectivity']['DlmsClient']
     serialPort = myConfiguration['SerialPort']
     baudRate = myConfiguration['BaudRate']
     interOctetTimeout = myConfiguration['InterOctetTimeout']
@@ -100,7 +101,10 @@ def initDlmsClient() -> DlmsCosemClient:
         exit(1)
     
 def initGenyClient() -> GenyApi:
-    myConfiguration = configFile['Environment']['TestBench']
+    myConfiguration = configFile['Environment']['Connectivity']['TestBench']
+    
+    if not myConfiguration['UseGeny']:
+        return
     
     serialPort = myConfiguration['SerialPort']
     baudRate = myConfiguration['BaudRate']
@@ -144,12 +148,6 @@ def turnOnGeny(geny:GenyApi):
         exit(1)
 
 def powerUpDelay():
-    try:
-        assert delay >= 0
-    except:
-        logger.critical('Invalid parameter')
-        exit(1)
-    
     myConfiguration = configFile['step 2']
     if myConfiguration['isEnable'] == False:
         return
@@ -181,7 +179,7 @@ def checkCalibrationData(dlmsClient:DlmsCosemClient):
     raw_calibrationData = dlmsClient.get_cosem_data(cosem_calibrationData.classId, cosem_calibrationData.obis, 2)
     raw_meterSetupData = dlmsClient.get_cosem_data(cosem_meterSetup.classId, cosem_meterSetup.obis, 2)
     
-    isCalibrationDataDefault = raw_calibrationData == calibrationRegister.dataFrame()
+    isCalibrationDataDefault = (raw_calibrationData == calibrationRegister.dataFrame())
     logger.info(f'Calibration data is {"NOT" if not isCalibrationDataDefault else ""} in default')
     if not isCalibrationDataDefault:
         logger.debug('Data lookup')
@@ -196,8 +194,26 @@ def checkCalibrationData(dlmsClient:DlmsCosemClient):
         logger.debug(f'Default : {meterSetupRegister.dataFrame()}')
         logger.debug(f'Read val: {raw_meterSetupData}')
     
+    # If flag to default
     if flagSetToDefault:
+        if isMeterSetupDefault and isCalibrationDataDefault:
+            logger.info('Configuration already in its default, skip process')
+            return True
+        
         result = writeCalibrationToDefault(dlmsClient)
+        if result == False:
+            logger.critical('Set calibration data to default FAILED')
+            exit(1)
+        return result
+    else:
+        setValue = parameters['Default meter setup']
+        meterSetupRegisters = meterSetupRegister.objectList()
+        for keyName in setValue:
+            value = setValue[keyName]
+            logger.info(f'Change {keyName} from {meterSetupRegisters[keyName].value} to {value}')
+            meterSetupRegisters[keyName].set(value)
+        
+        result = writeMeterSetup(dlmsClient, calibrationRegister, meterSetupRegister)
         if result == False:
             logger.critical('Set calibration data to default FAILED')
             exit(1)
@@ -257,8 +273,11 @@ def backupTemperatureData(dlmsClient:DlmsCosemClient):
     logger.info(f'Temperature: {temperature}')
     
     if flagSaveToFile == True:
-        logger.info('Store temperature to file')
+        if not os.path.exists(f'{CURRENT_PATH}/appdata'):
+            os.mkdir(f'{CURRENT_PATH}/appdata')
+        
         filename = f'{CURRENT_PATH}/appdata/{parameters["filename"]}'
+        logger.info(f'Store temperature to file. Path: {filename}')
         with open(filename, 'w') as f:
             json.dump({'temperature':temperature}, f)
 
@@ -363,9 +382,25 @@ def main():
     turnOnGeny(genyClient)
     powerUpDelay()
     
+    # Login DLMS
+    logger.info(f'Login to meter')
+    dlmsClient.client_logout()
+    loginResult =  dlmsClient.client_login('wwwwwwwwwwwwwwww', mechanism.HIGH_LEVEL)
+    logger.info(f'Login result {loginResult}')
+    if loginResult == False:
+        logger.critical(f'Could not login to meter')
+        exit(1)
+    
+    checkCalibrationData(dlmsClient)
+    backupTemperatureData(dlmsClient)
     
     
-    calibrate(PORT_METER)
+    dlmsClient.client_logout()
+    
+    
+    
+    
+    # calibrate(PORT_METER)
 
 if __name__ == "__main__":
     main()
