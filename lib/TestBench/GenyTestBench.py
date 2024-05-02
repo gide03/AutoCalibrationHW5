@@ -187,19 +187,23 @@ class GenyTestBench(GenySys):
                 try:
                     buffer = self.energyErrorCalibration.readbackSampling()
                     result = self.serialMonitor.transaction(buffer)
+                    # print(f'Transaction result: {result}')
                     self.response.extractDataFrame(result)
                         
                     samplingRegister = self.energyErrorCalibration.readbackSamplingRegister.extractResponseDataFrame(self.response)
+                    print(f'Sampling register: {samplingRegister}')
                     if verbose == True:
                         print('================================')
                         print('READ BACK SAMPLING')
                         print('================================')
                         for reg in samplingRegister:
                             print(f'{reg.name} -> {reg.value}')
+                    break
                 except:
                     continue
+            print(f'Sampling Register: {samplingRegister}')
             if samplingRegister != None:
-                return self.energyErrorCalibration.readbackSamplingRegister
+                return vars(self.energyErrorCalibration.readbackSamplingRegister)
             raise TimeoutError
             
     def readBackError(self, verbose=False, timeout=100):
