@@ -1,5 +1,5 @@
-METER_USB_PORT  = '/dev/ttyUSB2'
-GENY_USB_PORT   = '/dev/ttyUSB4'    # only used when calibrating error energy
+METER_USB_PORT  = 'com4'
+GENY_USB_PORT   = 'com7'    # only used when calibrating error energy
 
 class commSetting:
     METER_ADDR = 100
@@ -50,6 +50,8 @@ class CosemList(CosemObject):
     PowerFactorL3 = CosemObject('PowerFactorL3', '1;0;73;7;0;255', 3)
     InstantFrequency = CosemObject('InstantFrequency', '1;0;14;7;0;255', 3)
     Temperature = CosemObject('Temperature', '1;0;96;9;0;255', 3)
+    InstantFrequency = CosemObject('InstantFrequency', '1;0;14;7;0;255', 3)
+    
     
     LED1Configuration = CosemObject('LED1Configuration', '0;128;96;6;8;255', 1)
     LED2Configuration = CosemObject('LED2Configuration', '0;128;96;6;20;255', 1)
