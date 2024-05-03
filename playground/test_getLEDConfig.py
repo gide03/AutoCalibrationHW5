@@ -5,7 +5,7 @@ site.addsitedir(CURRENT_PATH.parent)
 
 import os
 import serial
-from src.Logger import getLogger
+from lib.Utils.Logger import getLogger
 from src import config
 
 from lib.Utils.MeterSetup import MeterSetup

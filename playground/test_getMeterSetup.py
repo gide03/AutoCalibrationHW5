@@ -5,7 +5,8 @@ site.addsitedir(CURRENT_PATH.parent)
 
 import os
 import serial
-from src.Logger import getLogger
+import click
+from lib.Utils.Logger import getLogger
 from src import config
 
 from lib.Utils.MeterSetup import MeterSetup
@@ -14,19 +15,16 @@ from lib.DLMS_Client.dlms_service.dlms_service import mechanism
 from lib.DLMS_Client.DlmsCosemClient import DlmsCosemClient
 from lib.DLMS_Client.hdlc.hdlc_app import AddrSize
 
-import argparse
-parser = argparse.ArgumentParser(description='A simple script to demonstrate Get Meter Setup')
-parser.add_argument('--port', help='USB PORT', required=True)
-args = parser.parse_args()
-USB_PORT = args.port
 
 if not os.path.exists(f'{CURRENT_PATH}/appdata'):
     os.mkdir(f'{CURRENT_PATH}/appdata')
 
-def main():
+@click.command()
+@click.option('--port', prompt="Enter serial port")
+def main(port):
     logger = getLogger(f'{CURRENT_PATH}/appdata/test_getMeterSetup.log')
     dlmsClient = DlmsCosemClient(                               # generate dlmsClient while waiting
-        port=USB_PORT,
+        port=port,
         baudrate=19200,
         parity=serial.PARITY_NONE,
         bytesize=serial.EIGHTBITS,
