@@ -145,28 +145,15 @@ def turnOnGeny(geny:GenyTestBench):
     frequency = parameters['Frequency']
     logger.info(f'Geny Parameters: V:{voltage}V I:{current}A Phase:{phase} Deg Freq:{frequency}Hz')
         
-    # try:
-    # geny.(
-    #     isCommon=True,
-    #     voltage=230,
-    #     current=30,
-    #     phase=60,
-    #     frequency=50,
-    #     meterConstant=1000,
-    #     ring=3
-    # )
     geny.setMode(GenyTestBench.Mode.ENERGY_ERROR_CALIBRATION)
     geny.setPowerSelector(PowerSelector._3P4W_ACTIVE)
     geny.setElementSelector(ElementSelector.EnergyErrorCalibration._COMBINE_ALL)
     geny.setVoltageRange(VoltageRange.YC99T_3C._380V)
-    geny.setPowerFactor(60, inDegree=True)
-    geny.setVoltage(230)
-    geny.setCurrent(30)
+    geny.setPowerFactor(phase, inDegree=True)
+    geny.setVoltage(voltage)
+    geny.setCurrent(current)
+    geny.setFrequency(frequency)
     geny.apply()
-    # geny.setCalibrationConstants(1000, 2)
-    # except:
-    #     logger.critical('Something wrong with Geny. Process terminated')
-    #     exit(1)
 
 def powerUpDelay():
     myConfiguration = configFile['step 2']
@@ -381,9 +368,9 @@ def miscelaneousConfiguration(dlmsClient:DlmsCosemClient):
     # KYZ CONFIGURATION
     logger.info('Configure KYZ to make sure the KYZ status is 0')
     kyz_cosem = (
-        '0;128;96;6;23;255',
-        '0;128;96;6;24;255',
-        '0;128;96;6;25;255'
+        config.CosemList.KYZ3Configuration,
+        config.CosemList.KYZ4Configuration,
+        config.CosemList.KYZ5Configuration,
     )
     kyz_dtype = (
         CosemDataType.e_LONG_UNSIGNED,
@@ -400,10 +387,10 @@ def miscelaneousConfiguration(dlmsClient:DlmsCosemClient):
         CosemDataType.e_LONG_UNSIGNED,
     )
     for kyz in kyz_cosem:
-        logger.info(f'Configure {kyz}')
+        logger.info(f'Configure {kyz.name}')
         kyzData = []
-        logger.info(f'Read {kyz}')
-        readData = dlmsClient.get_cosem_data(1, kyz, 2)
+        logger.info(f'Read {kyz.name}')
+        readData = dlmsClient.get_cosem_data(1, kyz.obis, 2)
         logger.info(f'Read result -- {readData}')
         if readData[-2] == 0:
             logger.info('Skip configuration because the status already 0')
@@ -414,7 +401,7 @@ def miscelaneousConfiguration(dlmsClient:DlmsCosemClient):
             kyzData.append(temp)
             
         logger.info(f'Data will be set: {kyzData}')
-        result = dlmsClient.set_cosem_data(1, kyz, 2, 2, kyzData)
+        result = dlmsClient.set_cosem_data(1, kyz.obis, 2, CosemDataType.e_STRUCTURE, kyzData)
         logger.info(f'Set result: {result}')
 
 def startCalibration(dlmsClient:DlmsCosemClient, testBench:GenyTestBench):

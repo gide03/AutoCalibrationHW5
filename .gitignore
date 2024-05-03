@@ -1,4 +1,5 @@
 /env
 /logs
-/Release
+/release*
+/src/appdata/
 *.pyc

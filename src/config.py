@@ -52,6 +52,13 @@ class CosemList(CosemObject):
     Temperature = CosemObject('Temperature', '1;0;96;9;0;255', 3)
     InstantFrequency = CosemObject('InstantFrequency', '1;0;14;7;0;255', 3)
     
+    KYZ1Configuration = CosemObject('KYZ1Configuration', '0;128;96;6;21;255', 1)
+    KYZ2Configuration = CosemObject('KYZ2Configuration', '0;128;96;6;22;255', 1)
+    KYZ3Configuration = CosemObject('KYZ3Configuration', '0;128;96;6;22;255', 1)
+    KYZ4Configuration = CosemObject('KYZ4Configuration', '0;128;96;6;23;255', 1)
+    KYZ5Configuration = CosemObject('KYZ5Configuration', '0;128;96;6;24;255', 1 )
+    
+    
     
     LED1Configuration = CosemObject('LED1Configuration', '0;128;96;6;8;255', 1)
     LED2Configuration = CosemObject('LED2Configuration', '0;128;96;6;20;255', 1)
