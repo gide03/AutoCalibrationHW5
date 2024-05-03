@@ -65,9 +65,6 @@ from lib.DLMS_Client.dlms_service.dlms_service import mechanism, CosemDataType
 from lib.DLMS_Client.DlmsCosemClient import DlmsCosemClient
 from lib.DLMS_Client.hdlc.hdlc_app import AddrSize
 
-PORT_GENY = '/dev/ttyUSB0'
-PORT_METER = '/dev/ttyUSB1'
-
 logger = getLogger('dev.log')
 with open(f'{CURRENT_PATH}/configurations/CalibrationStep.json', 'r') as f:
     configFile = json.load(f)
