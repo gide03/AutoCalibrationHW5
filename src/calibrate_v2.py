@@ -50,7 +50,7 @@ import config
 import math
 from time import sleep
 from datetime import datetime, timedelta
-from src.Logger import getLogger
+from lib.Utils.Logger import getLogger
 from lib.TestBench.TestBench import TestBench
 # from lib.TestBench.GenyApi import GenyApi
 from lib.TestBench.GenyTestBench import GenyTestBench
