@@ -1,6 +1,3 @@
-METER_USB_PORT  = 'com4'
-GENY_USB_PORT   = 'com7'    # only used when calibrating error energy
-
 class commSetting:
     METER_ADDR = 100
     CLIENT_NUMBER = 0x73
@@ -54,11 +51,9 @@ class CosemList(CosemObject):
     
     KYZ1Configuration = CosemObject('KYZ1Configuration', '0;128;96;6;21;255', 1)
     KYZ2Configuration = CosemObject('KYZ2Configuration', '0;128;96;6;22;255', 1)
-    KYZ3Configuration = CosemObject('KYZ3Configuration', '0;128;96;6;22;255', 1)
-    KYZ4Configuration = CosemObject('KYZ4Configuration', '0;128;96;6;23;255', 1)
-    KYZ5Configuration = CosemObject('KYZ5Configuration', '0;128;96;6;24;255', 1 )
-    
-    
+    KYZ3Configuration = CosemObject('KYZ3Configuration', '0;128;96;6;23;255', 1)
+    KYZ4Configuration = CosemObject('KYZ4Configuration', '0;128;96;6;24;255', 1)
+    KYZ5Configuration = CosemObject('KYZ5Configuration', '0;128;96;6;25;255', 1)
     
     LED1Configuration = CosemObject('LED1Configuration', '0;128;96;6;8;255', 1)
     LED2Configuration = CosemObject('LED2Configuration', '0;128;96;6;20;255', 1)

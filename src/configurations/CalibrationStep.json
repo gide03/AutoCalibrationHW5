@@ -3,17 +3,24 @@
     "Connectivity": {
       "TestBench": {
         "UseGeny": true,
-        "SerialPort": "COM7",
+        "SerialPort": "COM1",
         "BaudRate": 9600
       },
       "DlmsClient": {
-        "SerialPort": "COM4",
+        "SerialPort": "COM15",
         "BaudRate": 19200,
         "InterOctetTimeout": 0.1,
         "InactivityTimeout": 10,
         "LoginRetry": 1,
         "MeterAddress": 16,
         "ClientId": 115
+      },
+      "FrequencyCounter": {
+        "InstrumentPath": "USB0::0x14EB::0x0090::389645::INSTR",
+        "VendorList": {
+          "PENDULUM": true,
+          "KEYSIGHT": false
+        }
       }
     }
   },
@@ -22,7 +29,7 @@
     "processName": "Apply power to meter",
     "parameters": {
       "Voltage": 230,
-      "Current": 30,
+      "Current": 40,
       "Phase": 60,
       "Frequency": 50
     },

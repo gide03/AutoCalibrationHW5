@@ -1,43 +1,3 @@
-'''
-CALIBRATION PROCESS
-1.	Attach the probes to Cal/programming pads.
-2.	Apply 240 Volts at test amps with power factor (60 degree) to the meter.
-3.	Apply 2s delay to allow meter to power up.
-4.	The meter will power up with default calibration data.
-5.	Write “Calibration Data” (OBIS 0.128.96.14.80.255) and ‘Meter Setup’ (OBIS 0.128.96.14.81.255) with default values to the meter according to the meter form, class, etc. from the meter bar code scan. Note to set RTC temperature coeff = 0.
-6.	Read the temperature information from the meter (OBIS 1.0.96.9.0.255) and standard. Store the information for later averaging.
-7.	Program LED pulse output (OBIS 0.128.96.6.8.255) to “No Pulse”, so that calibration mode can be used.
-8.	Start calibration mode (OBIS 0.128.96.14.82.255) for PF Watts with a test time of 1.5s (90 cycles) with RTC output continue mode on (cal mode status = 1). 
-9.	4Hz RTC pulses are enabled from RTC output after start pulse.
-10.	Delay for test to complete.
-11.	Read the instantaneous voltage and current from Cal Mode reading, temperature (OBIS 1.0.96.9.0.255) information from the meter and the calibration standard.  Read the RTC 4Hz frequency from the counter. 
-12.	Average the temperature, voltage, current, and RTC frequency readings from both the meter and standard.
-13.	Calculate the calibration constants such as gains, phase delays, RTC error. Check if all those constants are within the limit.
-14.	Write the new constants via “Calibration Data” and ‘Meter Setup’ to the meter.
-'''
-
-'''
-VERIFICATION PROCESS
-1.	Verify that 240 Volts at test amps with power factor is applied to the meter. 
-2.	Apply 2s delay for new constants running.
-3.	Read all the calibration values and verify that they were updated correctly.
-4.	Start calibration mode (OBIS 0.128.96.14.82.255) for Watts with a test time of 0.5s (30 cycles)
-5.	Delay for test to complete.
-6.	Read the result of the calibration mode command and store this data into the database as the PF Reading.
-7.	Check if PF accuracies are within the limits. If the error is not within the 0.10%, adjust the phase delay, and redo the PF verification (step #1).
-8.	Change the load to 240 Volts at Test Amps at Unity power factor.
-9.	Apply 2s for meter and standard to stabilize.
-10.	Start calibration mode for Watts with a test time of 0.5s (30 cycles).
-11.	Delay for test to complete.
-12.	Read the result of the Calibration mode command and store this data into the database as the FL Reading.
-13.	Check if FL accuracies are within the limits. If the error is not within the 0.05%, adjust the energy gains, write new gains to ‘Calibration Data’. And redo verification from PF verification (step #1).
-14.	Change the load to 240 Volts at Light Load at Unity power factor.
-15.	Apply 3s for meter and standard to stabilize. 
-16.	Start Calibration Mode for Watts with a test time of 1s (60 cycles) with RTC output continue mode off (cal mode status = 0).
-17.	Delay for calibration mode to complete.
-18.	Read the result of the calibration mode command and store this into the database as LL Reading.
-'''
-
 import pathlib
 import site
 import os
@@ -48,6 +8,7 @@ import json
 import serial
 import config
 import math
+import click
 from time import sleep
 from datetime import datetime, timedelta
 from lib.Utils.Logger import getLogger
@@ -65,20 +26,27 @@ from lib.DLMS_Client.dlms_service.dlms_service import mechanism, CosemDataType
 from lib.DLMS_Client.DlmsCosemClient import DlmsCosemClient
 from lib.DLMS_Client.hdlc.hdlc_app import AddrSize
 
-logger = getLogger('dev.log')
 with open(f'{CURRENT_PATH}/configurations/CalibrationStep.json', 'r') as f:
     configFile = json.load(f)
+    
+if not os.path.exists(f'{CURRENT_PATH}/logs'):
+    os.mkdir(f'{CURRENT_PATH}/logs')
+    
+logger = getLogger(f'{CURRENT_PATH}/logs/temp.log')
 
-def initDlmsClient() -> DlmsCosemClient:
+def initDlmsClient(meterPort:str = 'na') -> DlmsCosemClient:
     logger.info('Initialize DLMS client')
     myConfiguration = configFile['Environment']['Connectivity']['DlmsClient']
-    serialPort = myConfiguration['SerialPort']
+    serialPort = meterPort
     baudRate = myConfiguration['BaudRate']
     interOctetTimeout = myConfiguration['InterOctetTimeout']
     inactivityTimeout = myConfiguration['InactivityTimeout']
     loginRetry = myConfiguration['LoginRetry']
     meterAddress = myConfiguration['MeterAddress']
     clientId = myConfiguration['ClientId']
+    
+    if meterPort != 'na':
+        serialPort = myConfiguration['SerialPort']
     
     logger.info(f'serialPort:{serialPort}(Baud:{baudRate}); meter addr:{meterAddress} clientId:{clientId}')
     
@@ -102,13 +70,15 @@ def initDlmsClient() -> DlmsCosemClient:
         logger.critical('Failed to initialize DlmsClient. Process terminated')
         exit(1)
     
-def initGenyClient() -> GenyTestBench:
+def initGenyClient(tbport='na') -> GenyTestBench:
     myConfiguration = configFile['Environment']['Connectivity']['TestBench']
     
     if not myConfiguration['UseGeny']:
         return
     
-    serialPort = myConfiguration['SerialPort']
+    if tbport != 'na':
+        serialPort = myConfiguration['SerialPort']
+    serialPort = tbport
     baudRate = myConfiguration['BaudRate']
     
     geny = GenyTestBench(serialPort, baudRate)
@@ -311,63 +281,50 @@ def miscelaneousConfiguration(dlmsClient:DlmsCosemClient):
     cosem_Led1Config = config.CosemList.LED1Configuration
     cosem_Led2Config = config.CosemList.LED2Configuration
     
-    # LED CONFIGURATION
-    # NOTE: Read LED config to makesure we don't change other configurations
-    logger.info('Read LED 1 configuration')
-    led1Config = [10, 11520, 11520, 4, 3, 1, 0, 1, 0, 0, 0, 65535] # This magic value is hardcoded from manual test
-    led2Config = [10, 11520, 11520, 4, 3, 2, 0, 1, 0, 0, 0, 65535] # This magic value is hardcoded from manual test
-    logger.info('Read LED 1 configuration')
-    led2Config = dlmsClient.get_cosem_data(cosem_Led2Config.classId, cosem_Led2Config.obis, 2)
+    logger.info('Configure LED1 and LED2')
+    logger.info('Setup LED1')
+    led1ConfigValue = [       
+        [CosemDataType.e_LONG_UNSIGNED, 10],
+        [CosemDataType.e_LONG_UNSIGNED, 11520],
+        [CosemDataType.e_LONG_UNSIGNED, 11520],
+        [CosemDataType.e_ENUM, 4],
+        [CosemDataType.e_ENUM, 3],
+        [CosemDataType.e_ENUM, 2],
+        [CosemDataType.e_ENUM, 0],
+        [CosemDataType.e_ENUM, 1],
+        [CosemDataType.e_ENUM, 0],
+        [CosemDataType.e_ENUM, 0],
+        [CosemDataType.e_ENUM, 1],
+        [CosemDataType.e_LONG_UNSIGNED, 0],
+    ]
+    logger.info(f'LED1 Config Value: {led1ConfigValue}')
+    led1_setResult = dlmsClient.set_cosem_data(cosem_Led1Config.classId, cosem_Led1Config.obis, 2, 2, led1ConfigValue)
+    logger.info(f'Result: {led1_setResult}')
     
-    flag_setLed1 = True
-    flag_setLed2 = True
-    # TODO: Modify led config to No pulse (change index 6 to 0). Skip if already No Pulse
-    if flag_setLed1:
-        logger.info(f'Set LED1 configuration')
-        valueLed_1 = [CosemDataType.e_STRUCTURE, [
-            [CosemDataType.e_LONG_UNSIGNED, led1Config[0]],
-            [CosemDataType.e_LONG_UNSIGNED, led1Config[1]],
-            [CosemDataType.e_LONG_UNSIGNED, led1Config[2]],
-            [CosemDataType.e_ENUM, led1Config[3]],
-            [CosemDataType.e_ENUM, led1Config[4]],
-            [CosemDataType.e_ENUM, led1Config[5]], 
-            [CosemDataType.e_ENUM, led1Config[6]],
-            [CosemDataType.e_ENUM, led1Config[7]],
-            [CosemDataType.e_ENUM, led1Config[8]],
-            [CosemDataType.e_ENUM, led1Config[9]],
-            [CosemDataType.e_ENUM, led1Config[10]],
-            [CosemDataType.e_LONG_UNSIGNED, led1Config[11]],
-        ]]
-        
-        result = dlmsClient.set_cosem_data(cosem_Led1Config.classId, cosem_Led1Config.obis, 2, CosemDataType.e_STRUCTURE, valueLed_1[1])
-        logger.info(f'Result: {"PASSED" if result == 0 else "FAILED"}')
+    logger.info('Setup LED2')
+    led2ConfigValue = [
+        [CosemDataType.e_LONG_UNSIGNED, 10],
+        [CosemDataType.e_LONG_UNSIGNED, 11520],
+        [CosemDataType.e_LONG_UNSIGNED, 11520],
+        [CosemDataType.e_ENUM, 4],
+        [CosemDataType.e_ENUM, 3],
+        [CosemDataType.e_ENUM, 1],
+        [CosemDataType.e_ENUM, 0],
+        [CosemDataType.e_ENUM, 1],
+        [CosemDataType.e_ENUM, 0],
+        [CosemDataType.e_ENUM, 0],
+        [CosemDataType.e_ENUM, 1],
+        [CosemDataType.e_LONG_UNSIGNED, 0],
+    ]
+    logger.info(f'LED2 Config Value: {led2ConfigValue}')
+    led2_setResult = dlmsClient.set_cosem_data(cosem_Led2Config.classId, cosem_Led2Config.obis, 2, 2, led2ConfigValue)
+    logger.info(f'Result: {led2_setResult}')
     
-    if flag_setLed2:
-        logger.info(f'Set LED2 configuration')
-        valueLed_2 = [CosemDataType.e_STRUCTURE, [
-            [CosemDataType.e_LONG_UNSIGNED, led2Config[0]],
-            [CosemDataType.e_LONG_UNSIGNED, led2Config[1]],
-            [CosemDataType.e_LONG_UNSIGNED, led2Config[2]],
-            [CosemDataType.e_ENUM, led2Config[3]],
-            [CosemDataType.e_ENUM, led2Config[4]],
-            [CosemDataType.e_ENUM, led2Config[5]], 
-            [CosemDataType.e_ENUM, led2Config[6]],
-            [CosemDataType.e_ENUM, led2Config[7]],
-            [CosemDataType.e_ENUM, led2Config[8]],
-            [CosemDataType.e_ENUM, led2Config[9]],
-            [CosemDataType.e_ENUM, led2Config[10]],
-            [CosemDataType.e_LONG_UNSIGNED, led2Config[11]],
-        ]]
-        
-        result = dlmsClient.set_cosem_data(cosem_Led2Config.classId, cosem_Led2Config.obis, 2, CosemDataType.e_STRUCTURE, valueLed_2[1])
-        logger.info(f'Result: {"PASSED" if result == 0 else "FAILED"}')    
-    
-    # KYZ CONFIGURATION
     logger.info('Configure KYZ to make sure the KYZ status is 0')
     kyz_cosem = (
-        config.CosemList.KYZ3Configuration,
-        config.CosemList.KYZ4Configuration,
-        config.CosemList.KYZ5Configuration,
+        '0;128;96;6;23;255',
+        '0;128;96;6;24;255',
+        '0;128;96;6;25;255'
     )
     kyz_dtype = (
         CosemDataType.e_LONG_UNSIGNED,
@@ -384,10 +341,10 @@ def miscelaneousConfiguration(dlmsClient:DlmsCosemClient):
         CosemDataType.e_LONG_UNSIGNED,
     )
     for kyz in kyz_cosem:
-        logger.info(f'Configure {kyz.name}')
+        logger.info(f'Configure {kyz}')
         kyzData = []
-        logger.info(f'Read {kyz.name}')
-        readData = dlmsClient.get_cosem_data(1, kyz.obis, 2)
+        logger.info(f'Read {kyz}')
+        readData = dlmsClient.get_cosem_data(1, kyz, 2)
         logger.info(f'Read result -- {readData}')
         if readData[-2] == 0:
             logger.info('Skip configuration because the status already 0')
@@ -398,7 +355,7 @@ def miscelaneousConfiguration(dlmsClient:DlmsCosemClient):
             kyzData.append(temp)
             
         logger.info(f'Data will be set: {kyzData}')
-        result = dlmsClient.set_cosem_data(1, kyz.obis, 2, CosemDataType.e_STRUCTURE, kyzData)
+        result = dlmsClient.set_cosem_data(1, kyz, 2, 2, kyzData)
         logger.info(f'Set result: {result}')
 
 def startCalibration(dlmsClient:DlmsCosemClient, testBench:GenyTestBench):
@@ -624,23 +581,32 @@ def calibrate(comPort):
     )
 
     # Login
-    cosemList = config.CosemList()
+    cosemList = config.CosemList
     loginResult = False
     try:
         logger.info('Login to meter')
         loginResult = dlmsClient.client_login('wwwwwwwwwwwwwwww', mechanism.HIGH_LEVEL)
         logger.info(f'result login dlms - {loginResult}')
+        exit()
     except Exception as e:
         logger.critical(f'Failed to login, error message: {str(e)}')
         return False
 
-def main():
+@click.command()
+@click.option('--meterport', prompt='Enter meter port', default='na')
+@click.option('--tbport', prompt='Test bench port', default='na')
+@click.option('--meterid', prompt='Meter ID', default='temp')
+def main(meterport, tbport, meterid):
+    global logger
+    logger = getLogger(f'{CURRENT_PATH}/logs/{meterid}.log')
+    print(f'Find the log file at: {CURRENT_PATH}/logs/{meterid}.log')
+    
     logger.info('='*30)
     logger.info('STARTING CALIBRATION')
     logger.info('='*30)
         
-    dlmsClient = initDlmsClient()
-    genyClient = initGenyClient()
+    dlmsClient = initDlmsClient(meterport)
+    genyClient = initGenyClient(tbport)
     
     # HANDLING STEP
     turnOnGeny(genyClient)
@@ -665,9 +631,9 @@ def main():
     startCalibration(dlmsClient, genyClient)
     
     dlmsClient.client_logout()
-    
-    
-    # calibrate(PORT_METER)
+    logger.info('Turn off test bench')
+    genyClient.close()
+    logger.info('Calibration finished')
 
 if __name__ == "__main__":
     main()

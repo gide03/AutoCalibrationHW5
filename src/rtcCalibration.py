@@ -8,26 +8,50 @@ import json
 import serial
 import config
 import click
+import pyvisa as visa
 from time import sleep
-from datetime import datetime, timedelta
 from lib.Utils.Logger import getLogger
-from lib.TestBench.TestBench import TestBench
-# from lib.TestBench.GenyApi import GenyApi
-from lib.TestBench.GenyTestBench import GenyTestBench
-from lib.TestBench.GenyUtil import ElementSelector, PowerSelector, VoltageRange
 
 from lib.Utils.CalibrationData import CalibrationRegister
 from lib.Utils.MeterSetup import MeterSetup
 from lib.Utils.CalMode import CalMode
-from lib.Utils.Register import Register
 
-from lib.DLMS_Client.dlms_service.dlms_service import mechanism, CosemDataType
-from lib.DLMS_Client.DlmsCosemClient import DlmsCosemClient
-from lib.DLMS_Client.hdlc.hdlc_app import AddrSize
+from DlmsCosemClient import DlmsCosemClient, AddrSize, mechanism
 
-logger = getLogger('rtc calibration.log')
+if not os.path.exists(f'{CURRENT_PATH}/logs'):
+    os.mkdir(f'{CURRENT_PATH}/logs')
+
+logger = None
 with open(f'{CURRENT_PATH}/configurations/CalibrationStep.json', 'r') as f:
     configFile = json.load(f)
+
+def initFreqCounter(vendor:str):
+    '''
+        vendor list:
+        "KEYSIGHT"
+        "PENDULUM"
+    '''
+    instrumentPath = configFile['Environment']['Connectivity']['FrequencyCounter']['InstrumentPath']
+    vendorList = configFile['Environment']['Connectivity']['FrequencyCounter']['VendorList']
+    isPendulum = vendorList['PENDULUM']
+    isKeysight = vendorList['KEYSIGHT']
+    
+    rm = visa.ResourceManager()
+    if isPendulum:
+        instrument = rm.open_resource(instrumentPath)
+        instrument.write("CONF:FREQ 4, (@1)")
+        instrument.write("INP:COUP DC")
+        instrument.write("INP:LEV 0.1")
+    elif isKeysight:
+        instrument = rm.open_resource(instrumentPath)
+        instrument.write("CONF:FREQ 4, (@1)")
+        instrument.write("INP:IMP 1000000")
+        instrument.write("INP:RANG 5")
+        instrument.write("INP:COUP DC")
+        instrument.write("INP:LEV 0.1")
+        instrument.write("INP:NREJ ON")
+    return instrument
+    
 
 def initDlmsClient() -> DlmsCosemClient:
     logger.info('Initialize DLMS client')
@@ -60,21 +84,34 @@ def initDlmsClient() -> DlmsCosemClient:
     except Exception as e:
         logger.warning(str(e))
         logger.critical('Failed to initialize DlmsClient. Process terminated')
+        exit('Dlms client initialization failed')
         
-
-def readInstrument()->float:
-    # NOTE: HARDCODED
-    # TODO: Read instrument
-    return 4.0001
+def readInstrument(instrument)->float:
+    for i in range(3):
+        try:
+            instrument.write("*CLS")
+            instrument.write("READ?")
+            response = instrument.read()
+            freq = float(response[:-1])
+            if 3 < freq < 5:
+                return freq
+        except:
+            pass
+    exit(f'Instrument read error')
     
 @click.command()
 @click.option('--meterid', prompt="Enter meter id")
 def main(meterid):
+    global logger
+    
+    logger = getLogger(f'{CURRENT_PATH}/logs/rtc calibration {meterid}.log')
     logger.info('='*30)
     logger.info(f'Start RTC calibration for {meterid}')
     logger.info('='*30)
     
     dlmsClient = initDlmsClient()
+    dlmsClient.client_logout()
+    instrument = initFreqCounter('PENDULUM')
     loginResult = dlmsClient.client_login('wwwwwwwwwwwwwwww', mechanism.HIGH_LEVEL)
     if loginResult == False:
         logger.critical('Could not connect to meter')
@@ -105,6 +142,17 @@ def main(meterid):
     logger.info(f'Meter setup data raw: {raw_meterSetup}')
     meterSetupRegister.extract(raw_meterSetup)        
     
+    logger.info(f'Set meter rtc calibartion to 0 for initialization')
+    if meterSetupRegister.RTCCalibration.value != 0:
+        meterSetupRegister.RTCCalibration.set(0)
+        meterSetupRegister.updateCRC(calibrationRegister)
+        result = dlmsClient.set_cosem_data(cosem_meterSetup.classId, cosem_meterSetup.obis, 2, 9, meterSetupRegister.dataFrame())
+        logger.info(f'Set result: {result}')
+        sleep(2)
+    else:
+        logger.info('Set result: SKIP, RtcCalibration already 0')
+        
+    
     # Apply 4Hz signal
     logger.info('Reading CalibrationMode data')
     calModeRegister = CalMode()
@@ -120,8 +168,9 @@ def main(meterid):
     
     logger.info(f'Apply 4Hz signal')
     #TODO 1: Set cal mode to apply 4Hz signal
+    calModeRegister.Cycles.set(400)
     
-    result = dlmsClient.set_cosem_data(cosem_calMode.classId, cosem_calMode.obis, 2, CosemDataType.e_STRUCTURE, calModeRegister.dataFrame())
+    result = dlmsClient.set_cosem_data(cosem_calMode.classId, cosem_calMode.obis, 2, 9, calModeRegister.dataFrame())
     try:
         assert result == 0
     except:
@@ -131,19 +180,21 @@ def main(meterid):
     logger.info('Reading frequency from instrument')
     
     # TODO 2: Reading instrument
-    frequency = readInstrument()
+    frequency = readInstrument(instrument)
     
     # Calculate RTC value
     logger.info(f'Instrument measurement: {frequency}Hz')
     RtcCalibrationValue = ( ( (frequency-4)/4) * 10**6 ) / 0.954
+    RtcCalibrationValue = int(RtcCalibrationValue)
     logger.info(f'Set RtcCalibration value from {meterSetupRegister.RTCCalibration.value} to {RtcCalibrationValue}')
     meterSetupRegister.RTCCalibration.set(RtcCalibrationValue)
     logger.info(f'Update CRC')
     meterSetupRegister.updateCRC(calibrationRegister)
     logger.info(f'Write meter setup')
-    result = dlmsClient.set_cosem_data(cosem_meterSetup.classId, cosem_meterSetup.obis, 2, CosemDataType.e_OCTET_STRING, meterSetupRegister.dataFrame())
+    result = dlmsClient.set_cosem_data(cosem_meterSetup.classId, cosem_meterSetup.obis, 2, 9, meterSetupRegister.dataFrame())
     try:
         assert result == 0
+        logger.info(f'Write SUCCESS')
     except:
         logger.critical('Failed to write Meter Setup')
         exit(1)
