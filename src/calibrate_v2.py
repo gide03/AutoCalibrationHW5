@@ -32,7 +32,7 @@ with open(f'{CURRENT_PATH}/configurations/CalibrationStep.json', 'r') as f:
 if not os.path.exists(f'{CURRENT_PATH}/logs'):
     os.mkdir(f'{CURRENT_PATH}/logs')
     
-logger = getLogger(f'{CURRENT_PATH}/logs/temp.log')
+logger = None
 
 def initDlmsClient(meterPort:str = 'na') -> DlmsCosemClient:
     logger.info('Initialize DLMS client')
@@ -598,13 +598,14 @@ def calibrate(comPort):
 @click.option('--meterid', prompt='Meter ID', default='temp')
 def main(meterport, tbport, meterid):
     global logger
-    logger = getLogger(f'{CURRENT_PATH}/logs/{meterid}.log')
-    print(f'Find the log file at: {CURRENT_PATH}/logs/{meterid}.log')
+    
+    logger = getLogger(f'{CURRENT_PATH}/logs/{meterid} calibration.log')
+    print(f'Find the log file at: {CURRENT_PATH}/logs/{meterid} calibration.log')
     
     logger.info('='*30)
     logger.info('STARTING CALIBRATION')
     logger.info('='*30)
-        
+    
     dlmsClient = initDlmsClient(meterport)
     genyClient = initGenyClient(tbport)
     
