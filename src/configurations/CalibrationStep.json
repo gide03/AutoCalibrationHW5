@@ -1,0 +1,151 @@
+{
+  "Environment": {
+    "Connectivity": {
+      "TestBench": {
+        "UseGeny": true,
+        "SerialPort": "COM1",
+        "BaudRate": 9600
+      },
+      "DlmsClient": {
+        "SerialPort": "COM15",
+        "BaudRate": 19200,
+        "InterOctetTimeout": 0.1,
+        "InactivityTimeout": 10,
+        "LoginRetry": 1,
+        "MeterAddress": 16,
+        "ClientId": 115
+      },
+      "FrequencyCounter": {
+        "InstrumentPath": "USB0::0x14EB::0x0090::389645::INSTR",
+        "VendorList": {
+          "PENDULUM": true,
+          "KEYSIGHT": false
+        }
+      }
+    }
+  },
+
+  "step 1": {
+    "processName": "Apply power to meter",
+    "parameters": {
+      "Voltage": 230,
+      "Current": 40,
+      "Phase": 60,
+      "Frequency": 50
+    },
+    "isEnable": true
+  },
+
+  "step 2": {
+    "processName": "Power up delay",
+    "parameters": {
+      "DelayTime": 12
+    },
+    "isEnable": true
+  },
+
+  "step 3": {
+    "processName": "Check is calibration data in default",
+    "parameters": {
+      "Set default value": false,
+      "Default meter setup": {
+        "MeterForm": 133,
+        "MeterClass": 3,
+        "FrequencySelection": 0,
+        "MeterType": 1,
+        "MeterVoltageType": 0,
+        "MeterPowerSupplyType": 1,
+        "ServicesenseMode": 0,
+        "AnticreepConstant": 793
+      },
+      "Default calibration data": {
+        "PhDirectionA": 1,
+        "PhDirectionB": 1,
+        "PhDirectionC": 1,
+        "PhDirectionN": 1,
+        "PhaseDelayA": 0,
+        "PhaseDelayB": 0,
+        "PhaseDelayC": 0,
+        "PhaseDelayN": 0,
+        "tf_control": 1,
+        "tf_coeff_a0": 7972264,
+        "tf_coeff_a1": -7541100,
+        "tf_coeff_a2": -409914,
+        "tf_coeff_a3": 0,
+        "tf_coeff_b1": -8387011,
+        "tf_coeff_b2": 0,
+        "tf_coeff_b3": 0
+      }
+    },
+    "isEnable": true
+  },
+
+  "step 4": {
+    "processName": "Read and save temperature information",
+    "parameters": {
+      "filename": "temperature.txt",
+      "isSaveToFile": true
+    },
+    "isEnable": true
+  },
+
+  "step 5": {
+    "processName": "Miscelaneous configurations",
+    "parameters": {
+      "NoPulseParameter": 0
+    },
+    "isEnable": true
+  },
+
+  "step 6": {
+    "processName": "Calibrate",
+    "parameters": {
+      "NumOfCycles": 90,
+      "RtcMode": 0,
+      "TurnOffMeterOnFailed": true
+    },
+    "isEnable": true
+  },
+
+  "step 7": {
+    "processName": "Read RTC",
+    "parameters": {
+      "NumOfSampleTaken": 1,
+      "MinFreqAccepted": 4,
+      "MaxFreqAccepted": 4.01,
+      "EnableMeasurementFilter": false
+    },
+    "isEnable": true
+  },
+
+  "step 8": {
+    "processName": "Delay for test to complete",
+    "parameters": {
+      "DelayTime": 2
+    },
+    "isEnable": true
+  },
+
+  "step 9": {
+    "processName": "Read instant voltage and current from Cal Mode reading, temperature and the standard",
+    "parameters": {
+      "InstantRegisters": [
+        "InstantVoltagePhase1",
+        "InstantVoltagePhase2",
+        "InstantVoltagePhase3",
+        "InstantCurrentPhase1",
+        "InstantCurrentPhase2",
+        "InstantCurrentPhase3"
+      ]
+    },
+    "isEnable": true
+  },
+
+  "step 10": {
+    "processName": "Calculate gain and write to calibration data",
+    "parameters": {
+      "summarize": false
+    },
+    "isEnable": true
+  }
+}

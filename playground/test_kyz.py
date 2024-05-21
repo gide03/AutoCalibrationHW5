@@ -46,17 +46,16 @@ def main():
     logger.info(f'Login result: {loginResult}')
     assert loginResult == True
 
-    cosem = config.CosemList.CalibarationData
-    calibrationData = CalibrationRegister()
-    calibrationDataRaw = dlmsClient.get_cosem_data(cosem.classId, cosem.obis, 2)
-    logger.info(f'Byte size: {len(calibrationDataRaw)} calibrationData: {calibrationData.byteSize()}')
-    logger.info(f'Data: {calibrationDataRaw}')
-    calibrationData.extract(calibrationDataRaw[:])
-    logger.info(f'Excess bytes: {len(calibrationDataRaw)}')
-    calibrationData.info(verbose=True)
-    logger.info(f'Raw data before: {bytes(calibrationDataRaw).hex()}')
-    logger.info(f'Get dataframe: {bytes(calibrationData.dataFrame()).hex()}')
-    logger.info(f'Is dataframe same as raw data? {calibrationDataRaw == calibrationData.dataFrame()}')
+    cosem = (
+        config.CosemList.KYZ1Configuration,
+        config.CosemList.KYZ2Configuration,
+        config.CosemList.KYZ3Configuration,
+        config.CosemList.KYZ4Configuration,
+        config.CosemList.KYZ5Configuration,
+    )
+    value = dlmsClient.get_cosem_data(cosem[0].classId, cosem[0].obis, 2)
+    logger.info(value)
+    
 
     dlmsClient.client_logout()
 

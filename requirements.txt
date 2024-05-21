@@ -5,3 +5,4 @@ paho-mqtt==1.6.1
 pycparser==2.21
 pyserial==3.5
 PyVISA==1.14.1
+click==8.1.7

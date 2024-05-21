@@ -8,25 +8,23 @@ import serial
 from lib.Utils.Logger import getLogger
 from src import config
 
-from lib.Utils.CalibrationData import CalibrationRegister
+from lib.Utils.MeterSetup import MeterSetup
 
 from lib.DLMS_Client.dlms_service.dlms_service import mechanism
 from lib.DLMS_Client.DlmsCosemClient import DlmsCosemClient
 from lib.DLMS_Client.hdlc.hdlc_app import AddrSize
 
-import argparse
-parser = argparse.ArgumentParser(description='A simple script to demonstrate Get Meter Setup')
-parser.add_argument('--port', help='USB PORT', required=True)
-args = parser.parse_args()
-USB_PORT = args.port
+import click
 
 if not os.path.exists(f'{CURRENT_PATH}/appdata'):
     os.mkdir(f'{CURRENT_PATH}/appdata')
 
-def main():
-    logger = getLogger(f'{CURRENT_PATH}/appdata/test_getCalibrationData.log')
+@click.command()
+@click.option('--port', prompt="Enter serial port")
+def main(port):
+    logger = getLogger(f'{CURRENT_PATH}/appdata/test_getLEDConfiguration.log')
     dlmsClient = DlmsCosemClient(                               # generate dlmsClient while waiting
-        port=USB_PORT,
+        port=port,
         baudrate=19200,
         parity=serial.PARITY_NONE,
         bytesize=serial.EIGHTBITS,
@@ -46,18 +44,14 @@ def main():
     logger.info(f'Login result: {loginResult}')
     assert loginResult == True
 
-    cosem = config.CosemList.CalibarationData
-    calibrationData = CalibrationRegister()
-    calibrationDataRaw = dlmsClient.get_cosem_data(cosem.classId, cosem.obis, 2)
-    logger.info(f'Byte size: {len(calibrationDataRaw)} calibrationData: {calibrationData.byteSize()}')
-    logger.info(f'Data: {calibrationDataRaw}')
-    calibrationData.extract(calibrationDataRaw[:])
-    logger.info(f'Excess bytes: {len(calibrationDataRaw)}')
-    calibrationData.info(verbose=True)
-    logger.info(f'Raw data before: {bytes(calibrationDataRaw).hex()}')
-    logger.info(f'Get dataframe: {bytes(calibrationData.dataFrame()).hex()}')
-    logger.info(f'Is dataframe same as raw data? {calibrationDataRaw == calibrationData.dataFrame()}')
-
+    cosem_LED1 = config.CosemList.LED1Configuration
+    cosem_LED2 = config.CosemList.LED2Configuration
+    
+    result = dlmsClient.get_cosem_data(cosem_LED1.classId, cosem_LED1.obis, 2)
+    logger.info(f'LED configuration 1: {result}')
+    result = dlmsClient.get_cosem_data(cosem_LED2.classId, cosem_LED2.obis, 2)
+    logger.info(f'LED configuration 2: {result}')
+    
     dlmsClient.client_logout()
 
 if __name__ == '__main__':

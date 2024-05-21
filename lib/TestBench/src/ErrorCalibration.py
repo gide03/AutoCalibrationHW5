@@ -53,44 +53,55 @@ class EnergyErrorCalibration:
             self.TotalPowerActive = Register('TotalPowerActive', float, 4)
             self.TotalPowerReactive = Register('TotalPowerReactive', float, 4)
             
-            self.registerList = (
-                self.Voltage_A,
-                self.VoltagePhase_A,
-                self.Current_A,
-                self.CurrentPhase_A,
-                self.PowerActive_A,
-                self.PowerReactive_A,
-                self.Voltage_B,
-                self.VoltagePhase_B,
-                self.Current_B,
-                self.CurrentPhase_B,
-                self.PowerActive_B,
-                self.PowerReactive_B,
-                self.Voltage_C,
-                self.VoltagePhase_C,
-                self.Current_C,
-                self.CurrentPhase_C,
-                self.PowerActive_C,
-                self.PowerReactive_C,
-                self.TotalPowerActive,
-                self.TotalPowerReactive,
-            )
+            # self.registerList = (
+            #     self.Voltage_A,
+            #     self.VoltagePhase_A,
+            #     self.Current_A,
+            #     self.CurrentPhase_A,
+            #     self.PowerActive_A,
+            #     self.PowerReactive_A,
+            #     self.Voltage_B,
+            #     self.VoltagePhase_B,
+            #     self.Current_B,
+            #     self.CurrentPhase_B,
+            #     self.PowerActive_B,
+            #     self.PowerReactive_B,
+            #     self.Voltage_C,
+            #     self.VoltagePhase_C,
+            #     self.Current_C,
+            #     self.CurrentPhase_C,
+            #     self.PowerActive_C,
+            #     self.PowerReactive_C,
+            #     self.TotalPowerActive,
+            #     self.TotalPowerReactive,
+            # )
+        
+        def registerList(self)->dict:
+            registers = vars(self)
+            regList = []
+            for regName in registers:
+                regList.append(registers[regName])
+            return regList
 
         def getValue(self) -> Tuple[Register]:
-            return self.registerList
+            registers = vars(self)
+            regList = []
+            for regName in registers:
+                regList.append(registers[regName])
+            return tuple(regList)
         
         def extractResponseDataFrame(self, dataFrame:ResponseDataFrame) -> Tuple[Register]:
             if not isinstance(dataFrame, ResponseDataFrame):
                 raise TypeError(f'dataFrame expect ResponseDataFrame not {type(dataFrame)}')
             
             data = dataFrame.DATA
-            if len(data) == len(self.registerList)*4:
+            if len(data) == len(self.registerList())*4:
                 pass
             else:
-                raise DatFrameError(f'Dataframe length not comply {len(self.registerList)*4}')
+                raise DatFrameError(f'Dataframe length not comply {len(self.registerList())*4}')
             
             values = [data[i:i+4] for i in range(0, len(data), 4)]
-            for reg, val in zip(self.registerList, values):
+            for reg, val in zip(self.registerList(), values):
                 reg.value = Util.Hex2float(val, size=reg.size)
             return self.getValue()
         
@@ -101,32 +112,40 @@ class EnergyErrorCalibration:
             self.MeterError2 = Register('Meter 2 Error', float, 4)
             self.MeterError3 = Register('Meter 3 Error', float, 4)
             
-            self.registerList = (
-                self.ValidFlagBit,
-                self.MeterError1,
-                self.MeterError2,
-                self.MeterError3
-            )
+            # self.registerList = (
+            #     self.ValidFlagBit,
+            #     self.MeterError1,
+            #     self.MeterError2,
+            #     self.MeterError3
+            # )
+        
+        def registerList(self):
+            registers = vars(self)
+            regList = []
+            for regName in registers:
+                regList.append(registers[regName])
+            return tuple(regList)
+            
         
         def extranctResponseDataFrame(self, dataFrame:ResponseDataFrame):
             if not isinstance(dataFrame, ResponseDataFrame):
                 raise TypeError(f'dataFrame expect ResponseDataFrame not {type(dataFrame)}')
             
             data = dataFrame.DATA
-            requiredDataLenght = sum([reg.size for reg in self.registerList])
+            requiredDataLenght = sum([reg.size for reg in self.registerList()])
             if len(data) >= requiredDataLenght:
                 pass
             else:
                 raise DatFrameError(f'Dataframe length not comply {requiredDataLenght}')
             
-            for register in self.registerList:
+            for register in self.registerList():
                 temp = []
                 for i in range(register.size):
                     temp.append(data.pop(0))
                 # print(f'Set register {register.name} raw data: {temp}')
                 register.setRawValue(temp)
                 
-            return self.registerList
+            return self.registerList()
             
     class Buffer:
         def __init__(self):
