@@ -98,6 +98,9 @@ def main(meterid, meterport):
         TestId(b'?28\r', 'MainB I/O', True),
         TestId(b'?29\r', 'Validate Ext ADC data', True),
         TestId(b'?30\r', 'SWITCH TO MAIN FW', True),
+        
+        # TODO: b?50\r to show other menu
+        # TODO: b?65\r reset flash
     )
     
     ser_client = DlmsCosemClient(
@@ -116,6 +119,7 @@ def main(meterid, meterport):
     hvt_ser = ser_client.ser
     
     try:
+        ser_client.client_logout()
         loginResult = ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL)
         if loginResult == False:
             logger.info('Could not login to meter')
@@ -148,14 +152,12 @@ def main(meterid, meterport):
         classId = 1
         attId = 2
         value = 1
-        # result = ser_client.set_cosem_data(classId, obis, attId, CosemDataType.e_UNSIGNED, value)
         ser_client.set_cosem_data_unconfirmed(classId, obis, attId, CosemDataType.e_UNSIGNED, value)
 
-        # input('Meter will restart. when the meter turn off, toggle power source!!. (Press ENTER if meter has been entered HVT mode)')
-        input('Meter should be enter HVT mode. Press ENTER to continue')
     except:
         print('')
         # exit()
+    input('Meter should be enter HVT mode. Press ENTER to continue')
     
     input('Please press ENTER to execute command for each test id. (Press ENTER to continue!)')
     for test in TestList:

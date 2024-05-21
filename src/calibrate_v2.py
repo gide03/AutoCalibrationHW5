@@ -45,7 +45,7 @@ def initDlmsClient(meterPort:str = 'na') -> DlmsCosemClient:
     meterAddress = myConfiguration['MeterAddress']
     clientId = myConfiguration['ClientId']
     
-    if meterPort != 'na':
+    if meterPort == 'na':
         serialPort = myConfiguration['SerialPort']
     
     logger.info(f'serialPort:{serialPort}(Baud:{baudRate}); meter addr:{meterAddress} clientId:{clientId}')

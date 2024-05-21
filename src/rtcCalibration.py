@@ -16,7 +16,9 @@ from lib.Utils.CalibrationData import CalibrationRegister
 from lib.Utils.MeterSetup import MeterSetup
 from lib.Utils.CalMode import CalMode
 
-from DlmsCosemClient import DlmsCosemClient, AddrSize, mechanism
+from lib.DLMS_Client.dlms_service.dlms_service import mechanism, CosemDataType
+from lib.DLMS_Client.DlmsCosemClient import DlmsCosemClient
+from lib.DLMS_Client.hdlc.hdlc_app import AddrSize
 
 if not os.path.exists(f'{CURRENT_PATH}/logs'):
     os.mkdir(f'{CURRENT_PATH}/logs')
