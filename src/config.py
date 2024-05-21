@@ -1,6 +1,3 @@
-METER_USB_PORT  = 'com4'
-GENY_USB_PORT   = 'com7'    # only used when calibrating error energy
-
 class commSetting:
     METER_ADDR = 100
     CLIENT_NUMBER = 0x73
@@ -43,7 +40,7 @@ class CosemList(CosemObject):
     MeterSetup = CosemObject('MeterSetup', '0;128;96;14;81;255', 1)
     CalMode = CosemObject('CalMode', '0;128;96;14;82;255', 1)
     FlashErase = CosemObject('FlashErase', '1;1;128;130;3;255', 1)
-    BatteryVoltage = CosemObject('BatteryVoltage', '1;1;128;130;4;255', 3)
+    BatteryVoltage = CosemObject('BatteryVoltage', '0;0;128;130;4;255', 3)
     Clock = CosemObject('Clock', '0;0;1;0;0;255', 8)
     PowerFactorL1 = CosemObject('PowerFactorL1', '1;0;33;7;0;255', 3)
     PowerFactorL2 = CosemObject('PowerFactorL2', '1;0;53;7;0;255', 3)
@@ -52,9 +49,18 @@ class CosemList(CosemObject):
     Temperature = CosemObject('Temperature', '1;0;96;9;0;255', 3)
     InstantFrequency = CosemObject('InstantFrequency', '1;0;14;7;0;255', 3)
     
+    # refer C:\Repo\HW_5.0\FW\common\CommonMetrologyDef.h
+    KYZ1Configuration = CosemObject('KYZ1Configuration', '0;128;96;6;21;255', 1)
+    KYZ2Configuration = CosemObject('KYZ2Configuration', '0;128;96;6;22;255', 1)
+    KYZ3Configuration = CosemObject('KYZ3Configuration', '0;128;96;6;23;255', 1)
+    KYZ4Configuration = CosemObject('KYZ4Configuration', '0;128;96;6;24;255', 1)
+    KYZ5Configuration = CosemObject('KYZ5Configuration', '0;128;96;6;25;255', 1)
     
     LED1Configuration = CosemObject('LED1Configuration', '0;128;96;6;8;255', 1)
     LED2Configuration = CosemObject('LED2Configuration', '0;128;96;6;20;255', 1)
+    
+    # TODO: Confirm to pak Aji about load control
+    # TODO: Confirm to pak Yonas the list of configuration
     
     InstantVoltagePhase1 = CosemObject('InstantVoltagePhase1', "1;0;32;7;0;255", 3)
     InstantVoltagePhase2 = CosemObject('InstantVoltagePhase2', "1;0;52;7;0;255", 3)
