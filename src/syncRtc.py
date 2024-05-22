@@ -1,28 +1,29 @@
 import os
 import serial
 import pathlib
-import click
 import site
 CURRENT_PATH = pathlib.Path(__file__).parent.absolute()
 site.addsitedir(f'{CURRENT_PATH.parent}')
 
-import config
 from lib.Utils.Logger import getLogger
 from datetime import datetime, timedelta
 from lib.DLMS_Client.dlms_service.dlms_service import mechanism
 from lib.DLMS_Client.DlmsCosemClient import DlmsCosemClient
 
+try:
+    from . import config
+except:
+    import config
 
 if not os.path.exists(f'{CURRENT_PATH}/logs'):
     os.mkdir(f'{CURRENT_PATH}/logs')
 
-@click.command()
-@click.option('--meterid', prompt='MeterID')
-@click.option('--comport', prompt='Enter meter port')
-@click.option('--timediv', prompt='Time deviation')
 def main(meterid, comport, timediv):
     filename = f'{CURRENT_PATH}/logs/{meterid} rtc_synchronize.log' 
     logger = getLogger(filename)
+    logger.info('='*30)
+    logger.info(f'RTC Sync for {meterid} - serialport {comport}')
+    logger.info('='*30)
     
     GMT = int(timediv)
 
@@ -111,5 +112,14 @@ def main(meterid, comport, timediv):
     
     input('Press Enter to continue')
 
+
+import click
+@click.command()
+@click.option('--meterid', prompt='Enter meter id')
+@click.option('--meterport', prompt='Enter meterport')
+@click.option('--timediv', prompt='Enter timediv')
+def run(meterid, meterport, timediv):
+    main(meterid, meterport, timediv)
+    
 if __name__ == '__main__':
-    main()
+    run()
