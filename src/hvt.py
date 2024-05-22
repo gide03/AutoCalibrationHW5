@@ -1,5 +1,4 @@
 import os
-import logging
 import serial
 import pathlib
 import sys
@@ -11,12 +10,14 @@ site.addsitedir(f'{CURRENT_PATH.parent}')
 
 from datetime import datetime, timedelta
 from lib.DLMS_Client.dlms_service.dlms_service import CosemDataType, mechanism
-from lib.DLMS_Client.DlmsCosemClient import DlmsCosemClient, TransportSec
+from lib.DLMS_Client.DlmsCosemClient import DlmsCosemClient
 from lib.Utils.Logger import getLogger
-from config import CosemList
 
 if not os.path.exists(f'{CURRENT_PATH}/logs'):
     os.mkdir(f'{CURRENT_PATH}/logs')
+
+if not os.path.exists(f'{CURRENT_PATH}/appdata'):
+    os.mkdir(f'{CURRENT_PATH}/appdata')
 
 class commSetting:
     METER_ADDR = 100
@@ -35,6 +36,7 @@ class TestId:
         self.desc = desc
         self.isRunTest = isRunTest
         self.isPassed = False
+        self.isSkip = False
         self.waitStateMsg = waitStateMsg
         self.expectedResult = expectedResult
         self.needVerify = needVerify
@@ -55,9 +57,6 @@ def transaction(serial:serial.Serial, buffer, timeout = 10):
                 return tempBuffer
     return b'ERROR::Serial timeout'
 
-@click.command()
-@click.option('--meterid', prompt='Enter meter ID')
-@click.option('--meterport', prompt='Enter meter port')
 def main(meterid, meterport):
     logger = getLogger(f'{CURRENT_PATH}/logs/{meterid} hvt.log')
     TestList = (
@@ -160,7 +159,12 @@ def main(meterid, meterport):
     input('Meter should be enter HVT mode. Press ENTER to continue')
     
     input('Please press ENTER to execute command for each test id. (Press ENTER to continue!)')
+    num_of_test = 0
+    num_of_success = 0
+    num_of_fail = 0
+    num_of_skip = 0
     for test in TestList:
+        num_of_test += 1
         if test.isRunTest:
             logger.info(f'Testing {test.desc}')
             if len(test.waitStateMsg) > 0:
@@ -193,14 +197,18 @@ def main(meterid, meterport):
                         if test.expectedResult == True:
                             test.isPassed = True
                             logger.info(f'PASSED')
+                            num_of_success += 1
                         else:
                             logger.warning(f'FAILED')
+                            num_of_fail += 1
                     elif 'Fail' in result:
                         if test.expectedResult == False:
                             test.isPassed = True
                             logger.info(f'PASSED')
+                            num_of_success += 1
                         else:
                             logger.warning(f'FAILED')
+                            num_of_fail += 1
                     elif 'ERROR' in result:
                         raise Exception('')
                     break
@@ -213,6 +221,34 @@ def main(meterid, meterport):
                         exit(1)
         else:
             logger.info(f'Skip Testing {test.desc}')
+            num_of_skip += 1
+            test.isSkip = True
+
+    logger.info(f'Summarize test id to csv file')
+    summaryFilename = f'{CURRENT_PATH}/appdata/hvt_summary.csv'
+    column = ['Meter ID']
+    column.extend([testItem.desc for testItem in TestList])
+    if not os.path.exists(summaryFilename):
+        line = ';'.join(column)
+        with open(summaryFilename, 'w') as f:
+            f.write(f'{line}\n')
+    with open(summaryFilename, 'a') as f:
+        rowValue = [meterid]
+        for testItem in TestList:
+            if testItem.isSkip == False:
+                rowValue.append(str(testItem.isPassed))
+            else:
+                rowValue.append('Skip')
+        line = ';'.join(rowValue)
+        f.write(f'{line}\n')
             
+    logger.info(f'HVT Finished. Num of test {num_of_test}, Num of success {num_of_success}, Num of fail {num_of_fail}, Num of skip {num_of_skip}')
+
+@click.command()
+@click.option('--meterid', prompt='Enter meter id')
+@click.option('--meterport', prompt='Enter meterport')
+def run(meterid, meterport):
+    main(meterid, meterport)
+    
 if __name__ == '__main__':
-    main()
+    run()

@@ -1,13 +1,12 @@
 import pathlib
 import site
 import os
+import click
 CURRENT_PATH = pathlib.Path(__file__).parent.absolute()
 site.addsitedir(CURRENT_PATH.parent)
 
 import json
 import serial
-import config
-import click
 import pyvisa as visa
 from time import sleep
 from lib.Utils.Logger import getLogger
@@ -20,6 +19,11 @@ from lib.DLMS_Client.dlms_service.dlms_service import mechanism, CosemDataType
 from lib.DLMS_Client.DlmsCosemClient import DlmsCosemClient
 from lib.DLMS_Client.hdlc.hdlc_app import AddrSize
 
+try:
+    from . import config
+except:
+    import config
+
 if not os.path.exists(f'{CURRENT_PATH}/logs'):
     os.mkdir(f'{CURRENT_PATH}/logs')
 
@@ -27,7 +31,7 @@ logger = None
 with open(f'{CURRENT_PATH}/configurations/CalibrationStep.json', 'r') as f:
     configFile = json.load(f)
 
-def initFreqCounter(vendor:str):
+def initFreqCounter():
     '''
         vendor list:
         "KEYSIGHT"
@@ -101,8 +105,6 @@ def readInstrument(instrument)->float:
             pass
     exit(f'Instrument read error')
     
-@click.command()
-@click.option('--meterid', prompt="Enter meter id")
 def main(meterid):
     global logger
     
@@ -113,7 +115,7 @@ def main(meterid):
     
     dlmsClient = initDlmsClient()
     dlmsClient.client_logout()
-    instrument = initFreqCounter('PENDULUM')
+    instrument = initFreqCounter()
     loginResult = dlmsClient.client_login('wwwwwwwwwwwwwwww', mechanism.HIGH_LEVEL)
     if loginResult == False:
         logger.critical('Could not connect to meter')
@@ -203,5 +205,10 @@ def main(meterid):
     
     dlmsClient.client_logout()
 
+@click.command()
+@click.option('--meterid', 'Enter meter id')
+def run(meterid):
+    main(meterid)
+
 if __name__ == '__main__':
-    main()
+    run()
