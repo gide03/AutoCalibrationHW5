@@ -10,7 +10,7 @@ from src.hvt import main as mainhvt
 from src.syncRtc import main as mainRtc
 from src.rtcCalibration import main as mainCalRtc
 from src.calibrate_v2 import main as mainGainCal
-
+from src.eraseFlash import main as mainEraseFlash
 
 @click.command()
 @click.option('--meterid', prompt='Enter meter id')
@@ -23,6 +23,7 @@ def main(meterid, meterport):
         print('2. RTC calibration')
         print('3. Gain Calibration')
         print('4. Sync Clock')
+        print('5. EraseFlash')
 
         try:
             sys.stdin.flush()
@@ -39,9 +40,15 @@ def main(meterid, meterport):
             mainCalRtc(meterid)
         elif choice == 3:
             tbport = input('Testbench port: ')
-            mainGainCal(meterport, tbport, meterid)
+            mainGainCal(meterid, meterport, tbport)
         elif choice == 4:
-            mainRtc(meterid=meterid, comport=meterport)
+            timediv = input("Enter timediv: ")
+            timediv = int(timediv)
+            mainRtc(meterid=meterid, comport=meterport, timediv=timediv)
+        elif choice == 5:
+            mainEraseFlash(meterid, meterport)
+        else:
+            print('IVALID INPUT')
             
 if __name__ == '__main__':
     main()
