@@ -1,5 +1,4 @@
 import logging
-import pathlib
 
 loggers = {}
 
@@ -10,6 +9,8 @@ def getLogger(filename) -> logging.Logger:
     # Create a logger
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.DEBUG)
+    
+    logger.handlers.clear()
 
     # Create console handler with a higher log level
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(funcName)s - %(message)s')

@@ -120,10 +120,15 @@ def main(meterid, meterport):
     except:
         print('')
     
-    logger.info('Show HVT menu')
-    hvtMenu = transaction(hvt_ser, b'?50\r')
-    hvtMenu = hvtMenu.decode('utf-8')
-    logger.info(hvtMenu)
+    # logger.info('Show HVT menu')
+    # for i in range(2):
+    #     try:
+    #         hvtMenu = transaction(hvt_ser, b'?50\r')
+    #         hvtMenu = hvtMenu.decode('utf-8')
+    #         break
+    #     except:
+    #         pass
+    # logger.info(hvtMenu)
     
     logger.info('Erase Flash, you may need to wait 170 second for the process')
     result = transaction(hvt_ser, b'?65\r', 170)
