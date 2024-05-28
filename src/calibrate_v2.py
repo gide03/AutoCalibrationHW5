@@ -1,19 +1,16 @@
 import pathlib
 import site
 import os
+import click
 CURRENT_PATH = pathlib.Path(__file__).parent.absolute()
 site.addsitedir(CURRENT_PATH.parent)
 
 import json
 import serial
-import config
 import math
-import click
 from time import sleep
 from datetime import datetime, timedelta
 from lib.Utils.Logger import getLogger
-from lib.TestBench.TestBench import TestBench
-# from lib.TestBench.GenyApi import GenyApi
 from lib.TestBench.GenyTestBench import GenyTestBench
 from lib.TestBench.GenyUtil import ElementSelector, PowerSelector, VoltageRange
 
@@ -25,6 +22,12 @@ from lib.Utils.Register import Register
 from lib.DLMS_Client.dlms_service.dlms_service import mechanism, CosemDataType
 from lib.DLMS_Client.DlmsCosemClient import DlmsCosemClient
 from lib.DLMS_Client.hdlc.hdlc_app import AddrSize
+
+try:
+    from . import config
+except:
+    import config
+
 
 with open(f'{CURRENT_PATH}/configurations/CalibrationStep.json', 'r') as f:
     configFile = json.load(f)
@@ -322,9 +325,11 @@ def miscelaneousConfiguration(dlmsClient:DlmsCosemClient):
     
     logger.info('Configure KYZ to make sure the KYZ status is 0')
     kyz_cosem = (
-        '0;128;96;6;23;255',
-        '0;128;96;6;24;255',
-        '0;128;96;6;25;255'
+        config.CosemList.KYZ1Configuration,
+        config.CosemList.KYZ2Configuration,
+        config.CosemList.KYZ3Configuration,
+        config.CosemList.KYZ4Configuration,
+        config.CosemList.KYZ5Configuration,
     )
     kyz_dtype = (
         CosemDataType.e_LONG_UNSIGNED,
@@ -341,10 +346,10 @@ def miscelaneousConfiguration(dlmsClient:DlmsCosemClient):
         CosemDataType.e_LONG_UNSIGNED,
     )
     for kyz in kyz_cosem:
-        logger.info(f'Configure {kyz}')
+        logger.info(f'Configure {kyz.objectName}')
         kyzData = []
-        logger.info(f'Read {kyz}')
-        readData = dlmsClient.get_cosem_data(1, kyz, 2)
+        logger.info(f'Read {kyz.objectName}')
+        readData = dlmsClient.get_cosem_data(kyz.classId, kyz.obis, 2)
         logger.info(f'Read result -- {readData}')
         if readData[-2] == 0:
             logger.info('Skip configuration because the status already 0')
@@ -355,7 +360,7 @@ def miscelaneousConfiguration(dlmsClient:DlmsCosemClient):
             kyzData.append(temp)
             
         logger.info(f'Data will be set: {kyzData}')
-        result = dlmsClient.set_cosem_data(1, kyz, 2, 2, kyzData)
+        result = dlmsClient.set_cosem_data(kyz.classId, kyz.obis, 2, 2, kyzData)
         logger.info(f'Set result: {result}')
 
 def startCalibration(dlmsClient:DlmsCosemClient, testBench:GenyTestBench):
@@ -592,11 +597,7 @@ def calibrate(comPort):
         logger.critical(f'Failed to login, error message: {str(e)}')
         return False
 
-@click.command()
-@click.option('--meterport', prompt='Enter meter port', default='na')
-@click.option('--tbport', prompt='Test bench port', default='na')
-@click.option('--meterid', prompt='Meter ID', default='temp')
-def main(meterport, tbport, meterid):
+def main(meterid, meterport, tbport):
     global logger
     
     logger = getLogger(f'{CURRENT_PATH}/logs/{meterid} calibration.log')
@@ -636,5 +637,13 @@ def main(meterport, tbport, meterid):
     genyClient.close()
     logger.info('Calibration finished')
 
+# meterport: Any, tbport: Any, meterid: Any
+@click.command()
+@click.option('--meterid', prompt='Enter meterid')
+@click.option('--meterport', prompt='Enter meterport')
+@click.option('--tbport', prompt='Enter test bench port')
+def run(meterid, meterport, tbport):
+    main(meterid, meterport, tbport)
+
 if __name__ == "__main__":
-    main()
+    run()
