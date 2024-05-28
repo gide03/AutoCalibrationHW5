@@ -1,8 +1,12 @@
 import logging
 import pathlib
 
+loggers = {}
 
 def getLogger(filename) -> logging.Logger:
+    if filename in loggers:
+        return loggers[filename]
+    
     # Create a logger
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.DEBUG)
@@ -22,4 +26,5 @@ def getLogger(filename) -> logging.Logger:
     # Add both handlers to the logger
     logger.addHandler(file_handler)
     logger.addHandler(console_handler)
+    loggers[filename] = logger
     return logger
