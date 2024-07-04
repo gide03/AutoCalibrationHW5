@@ -8,7 +8,7 @@ from DlmsCosemClient import DlmsCosemClient, AddrSize, mechanism
 import serial
 import click
 from lib.Utils.CalMode import CalMode
-from config import CosemList
+from src.config import CosemList
 
 
 @click.command()
@@ -28,6 +28,7 @@ def main(port):
         address_size=AddrSize.TWO_BYTE
     )
     
+    dlmsClient.client_logout()
     loginResult = dlmsClient.client_login('wwwwwwwwwwwwwwww', mechanism.HIGH_LEVEL)
     print(f'Login result: {loginResult}')
     
@@ -40,7 +41,7 @@ def main(port):
     calModeReg.Cycles.set(500)
     
     result = dlmsClient.set_cosem_data(cosem_calMode.classId, cosem_calMode.obis, 2, 9, calModeReg.dataFrame())
-    print(f'Result: {result}')
+    print(f'Result: {"SUCCESS" if result == 0 else "FAILED"}')
     dlmsClient.client_logout()
     
 

@@ -4,7 +4,7 @@ How to use:
 
 1. Setup python environment. Please consider to use python virtual environment. If it is already exist, activate it
 2. Install the requirements. `> pip install -r requirements.txt`
-3. Run the script
+3. Run the script. `> python app.py --meterport <serial port attached to meter> --meterid <meter identification>`
 
 ## How the script works
 
