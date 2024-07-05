@@ -50,7 +50,7 @@
       "Set default value": false,
       "Default meter setup": {
         "MeterForm": 133,
-        "MeterClass": 3,
+        "MeterClass": 5,
         "FrequencySelection": 0,
         "MeterType": 1,
         "MeterVoltageType": 0,
@@ -66,15 +66,7 @@
         "PhaseDelayA": 0,
         "PhaseDelayB": 0,
         "PhaseDelayC": 0,
-        "PhaseDelayN": 0,
-        "tf_control": 1,
-        "tf_coeff_a0": 7972264,
-        "tf_coeff_a1": -7541100,
-        "tf_coeff_a2": -409914,
-        "tf_coeff_a3": 0,
-        "tf_coeff_b1": -8387011,
-        "tf_coeff_b2": 0,
-        "tf_coeff_b3": 0
+        "PhaseDelayN": 0
       }
     },
     "isEnable": true
