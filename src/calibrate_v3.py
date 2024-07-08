@@ -87,7 +87,7 @@ def initGenyClient(tbport='na') -> GenyTestBench:
     geny = GenyTestBench(serialPort, baudRate)
     try:
         geny.close()
-        sleep(3)
+        sleep(5)
     except:
         pass
     
@@ -362,7 +362,7 @@ def miscelaneousConfiguration(dlmsClient:DlmsCosemClient):
         logger.info(f'Data will be set: {kyzData}')
         result = dlmsClient.set_cosem_data(kyz.classId, kyz.obis, 2, 2, kyzData)
         logger.info(f'Set result: {result}')
-
+    
 def startCalibration(dlmsClient:DlmsCosemClient, testBench:GenyTestBench):
     myConfiguration = configFile['step 6']
     if not myConfiguration['isEnable']:
@@ -395,7 +395,7 @@ def startCalibration(dlmsClient:DlmsCosemClient, testBench:GenyTestBench):
     logger.info(f'CalMode write result: {"PASSED" if result == 0 else "FAILED"}')
     if result != 0:
         logger.critical(f'Could not write CalibrationMode. Script terminated')
-        exit(0)
+        return False
         
     logger.info(f'Delay 3 second for meter process calmode')
     sleep(3)
@@ -478,7 +478,7 @@ def startCalibration(dlmsClient:DlmsCosemClient, testBench:GenyTestBench):
     logger.info(f'Power activeC: {PwrActiveC}')
     if True in [pwr <= 0 for pwr in (PwrActiveA, PwrActiveB, PwrActiveC)]:
         logger.critical('Power active shall not <= 0')
-        exit(1)
+        return False
     StdPA = Register("Standard A", "int16", (StdIrmsA.value*StdVrmsA.value)*math.cos(math.radians(60))) #readbackData['PowerActive_A']
     StdPB = Register("Standard B", "int16", (StdIrmsB.value*StdVrmsB.value)*math.cos(math.radians(60))) #readbackData['PowerActive_B']
     StdPC = Register("Standard C", "int16", (StdIrmsC.value*StdVrmsC.value)*math.cos(math.radians(60))) #readbackData['PowerActive_C']
@@ -545,29 +545,8 @@ def startCalibration(dlmsClient:DlmsCosemClient, testBench:GenyTestBench):
     result = writeCalibrationData(dlmsClient, calibrationRegister)
     if result == False:
         logger.critical('Calibration FAILED')
-        exit(1)
-
-    # logger.info("Sleep 3 seconds to make effect in power active")
-    # sleep(3)
-    # PwrActiveA = dlmsClient.get_cosem_data(cosem_activePwrA.classId, cosem_activePwrA.obis, 2)
-    # logger.info(f'Power activeA: {PwrActiveA}')
-    # PwrActiveB = dlmsClient.get_cosem_data(cosem_activePwrB.classId, cosem_activePwrB.obis, 2)
-    # logger.info(f'Power activeB: {PwrActiveB}')
-    # PwrActiveC = dlmsClient.get_cosem_data(cosem_activePwrC.classId, cosem_activePwrC.obis, 2)
-    # logger.info(f'Power activeC: {PwrActiveC}')
-    # logger.info("Calibrate power active")
-    # InstantMeasurement = (PwrActiveA, PwrActiveB, PwrActiveC)
-    # GainRegister = (gainP_A, gainP_B, gainP_C)
-    # Standard = (StdPA, StdPB, StdPC)
-    # for inst, gainReg, std in zip(InstantMeasurement, GainRegister, Standard):
-    #     newGain = round((gainReg.value*(std.value*1000)) / inst)
-    #     logger.info(f'Calculate {gainReg.name}. Instant value: {inst} GainReg: {gainReg.value} std: {std.value*1000} newGain: {newGain}')
-    #     gainReg.set(newGain)
-    # result = writeCalibrationData(dlmsClient, calibrationRegister)
-    # if result == False:
-    #     logger.critical('Calibration FAILED')
-    #     exit(1)
-    
+        return False
+    return True
 
 def calibrate(comPort):
     t = datetime.now()
@@ -630,7 +609,14 @@ def main(meterid, meterport, tbport):
     checkCalibrationData(dlmsClient)
     backupTemperatureData(dlmsClient)
     miscelaneousConfiguration(dlmsClient)
-    startCalibration(dlmsClient, genyClient)
+    is_success = startCalibration(dlmsClient, genyClient)
+    if not is_success:
+        try: # incase geny already closed by the handler
+            genyClient.close()
+        except:
+            pass
+        logger.critical('CALIBRATION RESULT = [FAILED]')
+        return
     
     dlmsClient.client_logout()
     logger.info('Turn off test bench')
