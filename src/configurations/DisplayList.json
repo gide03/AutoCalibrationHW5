@@ -1,0 +1,10 @@
+{
+    "DisplayItems":{
+        "LocalTime" : [1, "1;0;0;9;1;255", 2, 0],
+        "LocalDate" : [1, "1;0;0;9;2;255", 2, 0],
+        "ActiveenergyimportA" : [3, "1;0;1;8;0;255", 2, 0],
+        "ActiveenergyexportA" : [3, "1;0;2;8;0;255", 2, 0],
+        "ReactiveenergyimportRQIQII" : [3, "1;0;3;8;0;255", 2, 0],
+        "ReactiveenergyexportRQIIIQIV" : [3, "1;0;4;8;0;255", 2, 0]
+    }
+}

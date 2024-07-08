@@ -14,6 +14,7 @@ from src.syncRtc import main as mainRtc
 from src.rtcCalibration import main as mainCalRtc
 from src.calibrate_v3 import main as mainGainCal, initGenyClient
 from src.eraseFlash import main as mainEraseFlash
+from src.setDisplayList import main as displayConfig
 
 def miscellaneous(meterid, meterport):
     testBench = None
@@ -78,6 +79,7 @@ def main(meterid, meterport):
         print('3. Gain Calibration')
         print('4. Sync Clock')
         print('5. EraseFlash')
+        print('6. Display config')
         print('100. Miscellaneous')
 
         try:
@@ -95,7 +97,7 @@ def main(meterid, meterport):
             except Exception as e:
                 print(f'HTV Error, message: {str(e)}')
         elif choice == 2:
-            mainCalRtc(meterid)
+            mainCalRtc(meterid, meterport)
         elif choice == 3:
             tbport = input('Testbench port: ')
             mainGainCal(meterid, meterport, tbport)
@@ -105,6 +107,8 @@ def main(meterid, meterport):
             mainRtc(meterid=meterid, comport=meterport, timediv=timediv)
         elif choice == 5:
             mainEraseFlash(meterid, meterport)
+        elif choice == 6:
+            displayConfig(meterid, meterport)
         elif choice == 100:
             miscellaneous(meterid, meterport)
         else:
