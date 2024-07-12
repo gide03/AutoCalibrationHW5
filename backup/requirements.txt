@@ -1,0 +1,8 @@
+cffi==1.16.0
+click==8.1.7
+colorama==0.4.6
+cryptography==42.0.7
+pycparser==2.22
+pyserial==3.5
+PyVISA==1.14.1
+typing_extensions==4.12.0
