@@ -191,7 +191,7 @@ class GenyTestBench(GenySys):
                     self.response.extractDataFrame(result)
                         
                     samplingRegister = self.energyErrorCalibration.readbackSamplingRegister.extractResponseDataFrame(self.response)
-                    print(f'Sampling register: {samplingRegister}')
+                    # print(f'Sampling register: {samplingRegister}')
                     if verbose == True:
                         print('================================')
                         print('READ BACK SAMPLING')
@@ -201,7 +201,7 @@ class GenyTestBench(GenySys):
                     break
                 except:
                     continue
-            print(f'Sampling Register: {samplingRegister}')
+            # print(f'Sampling Register: {samplingRegister}')
             if samplingRegister != None:
                 return vars(self.energyErrorCalibration.readbackSamplingRegister)
             raise TimeoutError

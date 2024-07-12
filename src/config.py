@@ -75,4 +75,8 @@ class CosemList(CosemObject):
     PhaseAnglePhase2 = CosemObject('PhaseAnglePhase2', "1;0;81;7;51;255", 3)
     PhaseAnglePhase3 = CosemObject('PhaseAnglePhase3', "1;0;81;7;62;255", 3)
     
+    # DISPLAY CONFIG
+    DisplayConfigProfile = CosemObject('DisplayConfigProfile','0;0;21;0;1;255', 7)
+    DisplayObisConfig = CosemObject('DisplayObisConfig','0;0;21;0;1;255', 1)
+
     

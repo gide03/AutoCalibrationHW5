@@ -59,10 +59,10 @@ def initFreqCounter():
     return instrument
     
 
-def initDlmsClient() -> DlmsCosemClient:
+def initDlmsClient(port) -> DlmsCosemClient:
     logger.info('Initialize DLMS client')
     myConfiguration = configFile['Environment']['Connectivity']['DlmsClient']
-    serialPort = myConfiguration['SerialPort']
+    serialPort = port
     baudRate = myConfiguration['BaudRate']
     interOctetTimeout = myConfiguration['InterOctetTimeout']
     inactivityTimeout = myConfiguration['InactivityTimeout']
@@ -104,8 +104,9 @@ def readInstrument(instrument)->float:
         except:
             pass
     exit(f'Instrument read error')
-    
-def main(meterid):
+
+
+def main(meterid, port):
     global logger
     
     logger = getLogger(f'{CURRENT_PATH}/logs/rtc calibration {meterid}.log')
@@ -113,7 +114,7 @@ def main(meterid):
     logger.info(f'Start RTC calibration for {meterid}')
     logger.info('='*30)
     
-    dlmsClient = initDlmsClient()
+    dlmsClient = initDlmsClient(port)
     dlmsClient.client_logout()
     instrument = initFreqCounter()
     loginResult = dlmsClient.client_login('wwwwwwwwwwwwwwww', mechanism.HIGH_LEVEL)
@@ -205,10 +206,12 @@ def main(meterid):
     
     dlmsClient.client_logout()
 
+
 @click.command()
 @click.option('--meterid', 'Enter meter id')
-def run(meterid):
-    main(meterid)
+@click.option('--meterport', 'Enter meter meter port')
+def run(meterid, meterport):
+    main(meterid, meterport)
 
 if __name__ == '__main__':
     run()
