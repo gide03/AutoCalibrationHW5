@@ -56,7 +56,7 @@
         "MeterVoltageType": 0,
         "MeterPowerSupplyType": 1,
         "ServicesenseMode": 0,
-        "AnticreepConstant": 793
+        "AnticreepConstant": 748
       },
       "Default calibration data": {
         "PhDirectionA": 1,

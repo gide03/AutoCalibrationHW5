@@ -75,8 +75,8 @@ def main(port):
     read_calib = ser_client.get_cosem_data(cosem.classId, cosem.obis, 2)
     calib.extract(read_calib)
     
-    calib.tf_control.set(1)
-    ser_client.set_cosem_data(cosem.classId, cosem.obis, 2, 9, calib.dataFrame())
+    # calib.tf_control.set(1)
+    # ser_client.set_cosem_data(cosem.classId, cosem.obis, 2, 9, calib.dataFrame())
     # print(f'RMS Gain:')
     # objectList = vars(calib)
     # for regName in objectList:
