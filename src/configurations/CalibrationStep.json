@@ -58,7 +58,7 @@
         "ServicesenseMode": 0,
         "AnticreepConstant" : 748,
         "AnticreepVoltage" : 1400,
-        "AnticreepTimer" : 92160000
+        "AnticreepTimer" : 92160000,
         "Meter_SKU": 168296089
       },
 
