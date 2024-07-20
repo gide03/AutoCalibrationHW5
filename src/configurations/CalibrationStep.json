@@ -60,6 +60,7 @@
         "AnticreepVoltage" : 1400,
         "AnticreepTimer" : 92160000,
         "Meter_SKU": 168296089,
+        "LoadControlSets" : 1,
         "Main_switch_bistable_open_halfms_pulse_width": 80,
         "Main_switch_bistable_close_halfms_pulse_width" : 80,
         "Main_switch_pre_cross_halfms": 255,
