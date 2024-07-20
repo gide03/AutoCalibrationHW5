@@ -29,7 +29,7 @@
     "processName": "Apply power to meter",
     "parameters": {
       "Voltage": 230,
-      "Current": 40,
+      "Current": 30,
       "Phase": 60,
       "Frequency": 50
     },
@@ -52,7 +52,7 @@
         "MeterForm": 132,
         "MeterClass": 5,
         "FrequencySelection": 0,
-        "MeterType": 4,
+        "MeterType": 1, 
         "MeterVoltageType": 0,
         "MeterPowerSupplyType": 1,
         "ServicesenseMode": 0,

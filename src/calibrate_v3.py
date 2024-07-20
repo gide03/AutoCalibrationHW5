@@ -526,7 +526,7 @@ def startCalibration(dlmsClient:DlmsCosemClient, testBench:GenyTestBench):
         Wh_std[i] /= 1000000
         if Wh_std[i] != 0 :
             PFV[i] = Wh_m[i] / Wh_std[i]
-        phaseDelayNew[i] = int(((FLV[i]*100 - PFV[i]*100) / 0.03 ) + phaseDelayOld[i] + 10 ) #10 is offset
+        phaseDelayNew[i] = int(((FLV[i]*100 - PFV[i]*100) / 0.03 ) + phaseDelayOld[i]  )
         #check rollover
         if phaseDelayNew[i] > 256 :
             phaseDelayNew[i] -= 256
