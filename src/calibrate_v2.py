@@ -446,7 +446,7 @@ def startCalibration(dlmsClient:DlmsCosemClient, testBench:GenyTestBench):
     # Voltages
     VrmsA = calModeRegister.VrmsA.value
     VrmsB = calModeRegister.VrmsB.value
-    VrmsC = calModeRegister.VrmsB.value
+    VrmsC = calModeRegister.VrmsC.value
     StdVrmsA = readbackData['Voltage_A']
     StdVrmsB = readbackData['Voltage_B']
     StdVrmsC = readbackData['Voltage_C']
