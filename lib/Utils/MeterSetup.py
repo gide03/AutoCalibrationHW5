@@ -93,7 +93,7 @@ class MeterSetup(RegisterWrapper):
         self.Coeff_CorrectionResolution =  Register('Coeff_CorrectionResolution', 'int16', 0)
         self.MA_FilterCoeff_0 = Register('MA_FilterCoeff_0', 'int16', 0)
         self.MA_FilterCoeff_1 = Register('MA_FilterCoeff_1', 'int16', 0)
-        self.MA_FilterCoeff_1 = Register('MA_FilterCoeff_1', 'int16', 0)
+        self.MA_FilterCoeff_2 = Register('MA_FilterCoeff_2', 'int16', 0)
         self.MA_FilterCoeff_3 = Register('MA_FilterCoeff_3', 'int16', 0)
         self.MA_FilterCoeff_4 = Register('MA_FilterCoeff_4', 'int16', 0)
         self.MA_FilterCoeff_5 = Register('MA_FilterCoeff_5', 'int16', 0)
