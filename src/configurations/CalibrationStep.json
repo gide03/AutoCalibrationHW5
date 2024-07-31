@@ -76,9 +76,13 @@
 
         "PhShiftTransferFunctionControl": 3,
         "Scalar_Config_For_FullAmorphous" : 14,
-        "MA_FilterCoeff_0" : 15793,
-        "MA_FilterCoeff_1" : -6665,
-        "MA_FilterCoeff_2" : -9052,
+        "Coeff_PhShiftTemperatureErrorInDegreeAtTemperatureZero" : 2070,
+        "Coeff_PhShiftTemperatureBetaMCUTemp" : -59,
+        "Coeff_PhShiftTemperatureBetaIRMS" : -3,
+        "Coeff_CorrectionResolution" : 549,
+        "MA_FilterCoeff_0" : 15486,
+        "MA_FilterCoeff_1" : -15449,
+        "MA_FilterCoeff_2" : 0,
         "MA_FilterCoeff_3" : 0,
         "MA_FilterCoeff_4" : 0,
         "MA_FilterCoeff_5" : 0,
@@ -92,8 +96,8 @@
         "MA_FilterCoeff_13" : 0,
         "MA_FilterCoeff_14" : 0,
         "MA_FilterCoeff_15" : 0,
-        "AR_FilterCoeff_0" : 7938,
-        "AR_FilterCoeff_1" : 8428,
+        "AR_FilterCoeff_0" : 17263,
+        "AR_FilterCoeff_1" : -881,
         "AR_FilterCoeff_2" : 0
       },
       "Default calibration data": {
