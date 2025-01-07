@@ -76,7 +76,19 @@ class CalibrationRegister(RegisterWrapper):
         self.ReAciveEnergyOffsetphA = Register('ReAciveEnergyOffsetphA', 'int16', 0)
         self.ReAciveEnergyOffsetphB = Register('ReAciveEnergyOffsetphB', 'int16', 0)
         self.ReAciveEnergyOffsetphC = Register('ReAciveEnergyOffsetphC', 'int16', 0)
+
+        self.Reserved = [Register('Reserved', 'int32', 0) for i in range(8)]
   
+
+        # self.tf_control = Register('tf_control', 'uint32', 0)
+        # self.tf_coeff_a0 = Register('tf_coeff_a0', 'int32', 7861815)
+        # self.tf_coeff_a1 = Register('tf_coeff_a1', 'int32', -7321497)
+        # self.tf_coeff_a2 = Register('tf_coeff_a2', 'int32', -523597)
+        # self.tf_coeff_a3 = Register('tf_coeff_a3', 'int32', 0)
+        # self.tf_coeff_b1 = Register('tf_coeff_b1', 'int32', -8388202)
+        # self.tf_coeff_b2 = Register('tf_coeff_b2', 'int32', 0)
+        # self.tf_coeff_b3 = Register('tf_coeff_b3', 'int32', 0)
+
         self.TransferFunction_control = Register('TransferFunction_control', 'uint16', 3)
         self.Scalar_Config_For_FullAmorphous = Register('Scalar_Config_For_FullAmorphous', 'uint16', 14)
         self.EPM_Scalar_Config_For_FullAmorphous = Register('EPM_Scalar_Config_For_FullAmorphous', 'uint16', 12)
@@ -170,5 +182,3 @@ class CalibrationRegister(RegisterWrapper):
         self.EPM_AR_FilterCoeff_1 = Register('EPM_AR_FilterCoeff_1', 'int16', 0)
         self.EPM_AR_FilterCoeff_2 = Register('EPM_AR_FilterCoeff_2', 'int16', 0)
         self.EPM_AR_FilterCoeff_3 = Register('EPM_AR_FilterCoeff_3', 'int16', 0)
-
-
