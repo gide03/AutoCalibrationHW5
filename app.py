@@ -2,6 +2,7 @@ import pathlib
 import site
 import click
 import sys
+import json
 
 CURRENT_DIR = pathlib.Path(__file__).parent.absolute()
 site.addsitedir(CURRENT_DIR)
@@ -11,8 +12,9 @@ from lib.TestBench.GenyUtil import ElementSelector, PowerSelector, VoltageRange
 from src.hvt import main as mainhvt
 from src.syncRtc import main as mainRtc
 from src.rtcCalibration import main as mainCalRtc
-from src.calibrate_v2 import main as mainGainCal, initGenyClient
+from src.calibrate_v3 import main as mainGainCal, initGenyClient
 from src.eraseFlash import main as mainEraseFlash
+from src.setDisplayList import main as displayConfig
 
 def miscellaneous(meterid, meterport):
     testBench = None
@@ -21,9 +23,13 @@ def miscellaneous(meterid, meterport):
         print('--- MISCELLANEOUS ---')
         print('1. Turn On Testbech (via serial)')
         print('2. Turn Off Testbench (via serial)')
+        print('3. Readback Sampling (via serial)')
         try:
             choice = input('Choice (b for back): ')
             if choice == 'b':
+                if testBench != None:
+                    testBench.serialMonitor.stopMonitor()
+                    del testBench
                 break
             
             choice = int(choice)
@@ -31,7 +37,7 @@ def miscellaneous(meterid, meterport):
             print('ERR: INVALID INPUT')
             continue
         
-        if choice in (1,2):
+        if choice in (1,2, 3):
             if testBench == None:
                 tbport = input('Testbench port: ')
                 testBench = initGenyClient(tbport)
@@ -48,7 +54,17 @@ def miscellaneous(meterid, meterport):
             testBench.setFrequency(50)
             testBench.apply()
         elif choice == 2:
-            testBench.close()             
+            testBench.close()
+        elif choice == 3:
+            try:
+                readBackSampling = testBench.readBackSamplingData()
+                for samplingName in readBackSampling:
+                    sampling = readBackSampling[samplingName]
+                    readBackSampling[samplingName] = sampling.value
+                print(json.dumps(readBackSampling, indent=2))
+            except:
+                pass
+            
 
 
 @click.command()
@@ -63,6 +79,7 @@ def main(meterid, meterport):
         print('3. Gain Calibration')
         print('4. Sync Clock')
         print('5. EraseFlash')
+        print('6. Display config')
         print('100. Miscellaneous')
 
         try:
@@ -80,7 +97,7 @@ def main(meterid, meterport):
             except Exception as e:
                 print(f'HTV Error, message: {str(e)}')
         elif choice == 2:
-            mainCalRtc(meterid)
+            mainCalRtc(meterid, meterport)
         elif choice == 3:
             tbport = input('Testbench port: ')
             mainGainCal(meterid, meterport, tbport)
@@ -90,6 +107,8 @@ def main(meterid, meterport):
             mainRtc(meterid=meterid, comport=meterport, timediv=timediv)
         elif choice == 5:
             mainEraseFlash(meterid, meterport)
+        elif choice == 6:
+            displayConfig(meterid, meterport)
         elif choice == 100:
             miscellaneous(meterid, meterport)
         else:

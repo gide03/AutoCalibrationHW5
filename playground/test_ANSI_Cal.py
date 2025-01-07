@@ -124,6 +124,8 @@ def main(port):
     insVrms =[calmode.VrmsA.value/1000,calmode.VrmsB.value/1000,calmode.VrmsC.value/1000]
     insIrms =[calmode.IrmsA.value/1000,calmode.IrmsB.value/1000,calmode.IrmsC.value/1000]
     
+    phaseDelayOld = [calib.PhaseDelayA.value,calib.PhaseDelayB.value,calib.PhaseDelayC.value]
+    phaseDelayNew = [0,0,0]
     
     calmode.info(verbose=True)
     print(f'Calimp: {Calimp}')
@@ -131,8 +133,7 @@ def main(port):
     print(f'TrheshPulses: {ThreshPulses}')
     print(f'Phase delay old: {phaseDelayOld}')
 
-    phaseDelayOld = [calib.PhaseDelayA.value,calib.PhaseDelayB.value,calib.PhaseDelayC.value]
-    phaseDelayNew = [0,0,0]
+
     
     FLV = [1,1,1] #always 1
     PFV = [0,0,0]

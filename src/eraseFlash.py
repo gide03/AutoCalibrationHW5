@@ -79,67 +79,65 @@ def main(meterid, meterport):
     
     hvt_ser = ser_client.ser
     
-    try:
-        ser_client.client_logout()
-        loginResult = ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL)
-        if loginResult == False:
-            logger.info('Could not login to meter')
-    except TimeoutError:
-        logger.info('Login timeout')
-        logger.info('Try to get hvt menu')
-        response = transaction(hvt_ser, b'?50\r').decode('utf-8')
-        logger.info(f'Response: {response}')
-        if 'ERROR' in response:
-            logger.critical('Serial timeout. Please check your connection configuration')
-            return 1
-    except Exception:
-        logger.info('Meter might be already at hvt mode')
-        logger.info('Get hvt menu')
-        response = transaction(hvt_ser, b'?50\r').decode('utf-8')
-        logger.info(f'Response: {response}')
-        if 'ERROR' in response:
-            logger.critical('Serial timeout. Please check your connection configuration')
-            return 1
-        
-    try:
-        if loginResult :
-            logger.info('Reading fw version')
-            fwVersion = ser_client.get_cosem_data(1, '1;0;0;2;0;255', 2)
-            logger.info(f'Firmware Version: {bytes(fwVersion).decode("utf-8")}')
+    for i in range(2):
+        try:
+            ser_client.client_logout()
+            loginResult = ser_client.client_login(commSetting.AUTH_KEY, mechanism.HIGH_LEVEL)
+            if loginResult == False:
+                logger.info('Could not login to meter')
+                continue
+        except TimeoutError:
+            logger.info('Login timeout')
+            logger.info('Try to get hvt menu')
+            response = transaction(hvt_ser, b'?50\r').decode('utf-8')
+            logger.info(f'Response: {response}')
+            if 'ERROR' in response:
+                logger.critical('Serial timeout')
+                continue
+        except Exception:
+            logger.info('Meter might be already at hvt mode')
+            logger.info('Get hvt menu')
+            response = transaction(hvt_ser, b'?50\r').decode('utf-8')
+            logger.info(f'Response: {response}')
+            if 'ERROR' in response:
+                logger.critical('Serial timeout')
+                continue
             
-            print('Enter to mode HVT')
-            # TODO: CHANGE OBIS CODE FOR HVT
-            # obis = '1;1;128;130;1;255'
-            obis = '0;0;128;130;1;255'
-            classId = 1
-            attId = 2
-            value = 1
-            ser_client.set_cosem_data_unconfirmed(classId, obis, attId, CosemDataType.e_UNSIGNED, value)
-            logger.info('Meter should be run in HVT mode')
-            time.sleep(2)
-    except:
-        print('')
-    
-    # logger.info('Show HVT menu')
-    # for i in range(2):
-    #     try:
-    #         hvtMenu = transaction(hvt_ser, b'?50\r')
-    #         hvtMenu = hvtMenu.decode('utf-8')
-    #         break
-    #     except:
-    #         pass
-    # logger.info(hvtMenu)
-    
-    logger.info('Erase Flash, you may need to wait 170 second for the process')
-    result = transaction(hvt_ser, b'?65\r', 170)
-    print('show menu', result)
-    result = result.decode('utf-8')
-    logger.info(f'Result: {result}')
-    if "Pass" in result:
-        logger.info('Erase flash success')
-    else:
-        logger.critical('Erase flash Failed')
-    
+        try:
+            if loginResult :
+                logger.info('Reading fw version')
+                fwVersion = ser_client.get_cosem_data(1, '1;0;0;2;0;255', 2)
+                logger.info(f'Firmware Version: {bytes(fwVersion).decode("utf-8")}')
+                
+                print('Enter to mode HVT')
+                # TODO: CHANGE OBIS CODE FOR HVT
+                # obis = '1;1;128;130;1;255'
+                obis = '0;0;128;130;1;255'
+                classId = 1
+                attId = 2
+                value = 1
+                ser_client.set_cosem_data_unconfirmed(classId, obis, attId, CosemDataType.e_UNSIGNED, value)
+                logger.info('Meter should be run in HVT mode')
+                time.sleep(10)
+                break
+        except:
+            print('')
+        
+    for i in range(2):
+        try:
+            logger.info('Erase Flash, you may need to wait 170 second for the process')
+            result = transaction(hvt_ser, b'?65\r', 170)
+            print('show menu', result.decode('utf-8'))
+            result = result.decode('utf-8')
+            logger.info(f'Result: {result}')
+            if "Pass" in result:
+                logger.info('Erase flash success')
+            else:
+                logger.critical('Erase flash Failed')
+        except:
+            continue
+        break
+        
     logger.info('Exit HVT')
     transaction(hvt_ser, b'?30\r')
     
